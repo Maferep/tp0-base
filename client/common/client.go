@@ -2,8 +2,12 @@ package common
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -45,6 +49,7 @@ func (c *Client) createClientSocket() error {
 			c.config.ID,
 			err,
 		)
+		return errors.New("could not connect")
 	}
 	c.conn = conn
 	return nil
@@ -54,9 +59,25 @@ func (c *Client) createClientSocket() error {
 func (c *Client) StartClientLoop() {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
+
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM)
+	is_done := false
+	go func() {
+		<-signals
+		fmt.Println("we got a signal!")
+		is_done = true
+	}()
+
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
 		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
+
+		err := c.createClientSocket()
+
+		if err != nil {
+			fmt.Println("Got an error creating the socket")
+			break
+		}
 
 		// TODO: Modify the send to avoid short-write
 		fmt.Fprintf(
@@ -80,7 +101,10 @@ func (c *Client) StartClientLoop() {
 			c.config.ID,
 			msg,
 		)
-
+		if is_done {
+			fmt.Println("Graceful shutdown!")
+			break
+		}
 		// Wait a time between sending one message and the next one
 		time.Sleep(c.config.LoopPeriod)
 
