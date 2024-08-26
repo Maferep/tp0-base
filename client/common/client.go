@@ -97,6 +97,7 @@ func (c *Client) StartClientLoop() {
 
 		if is_done {
 			fmt.Println("Graceful shutdown!")
+			c.conn.Close()
 			break
 		}
 
