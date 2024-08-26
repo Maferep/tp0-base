@@ -55,10 +55,17 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+func wait(timer chan string, d time.Duration) {
+	time.Sleep(d)
+	timer <- "done sleeping"
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
+
+	timer := make(chan string, 1)
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
@@ -67,11 +74,11 @@ func (c *Client) StartClientLoop() {
 		<-signals
 		fmt.Println("we got a signal!")
 		is_done = true
+		timer <- "Got a signal!"
 	}()
 
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-
+		// Create the connection the server in every loop iteration. Send an}
 		err := c.createClientSocket()
 
 		if err != nil {
@@ -80,34 +87,45 @@ func (c *Client) StartClientLoop() {
 		}
 
 		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
+		shouldReturn := createMessage(c, msgID)
+		if shouldReturn {
 			return
 		}
 
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
+		go wait(timer, c.config.LoopPeriod)
+		<-timer
+
 		if is_done {
 			fmt.Println("Graceful shutdown!")
 			break
 		}
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
 
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+}
+
+func createMessage(c *Client, msgID int) bool {
+
+	fmt.Fprintf(
+		c.conn,
+		"[CLIENT %v] Message N°%v\n",
+		c.config.ID,
+		msgID,
+	)
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	c.conn.Close()
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return true
+	}
+
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+		c.config.ID,
+		msg,
+	)
+	return false
 }
