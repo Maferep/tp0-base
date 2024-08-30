@@ -35,6 +35,14 @@ class Server:
                 break
         print("Shutting down...")
 
+    def send_message(self, message, client_sock):
+        # TODO: Modify the send to avoid short-writes
+        sending = "{}\n".format(message).encode('utf-8')
+        bytes_sent = 0
+        while bytes_sent < len(sending):
+            bytes_sent += client_sock.send(sending[bytes_sent:])
+        return bytes_sent
+
     def __handle_client_connection(self, client_sock):
         """
         Read message from a specific client socket and closes the socket
@@ -43,12 +51,24 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            messages = []
+            buffer = b''
+            while not len(messages):
+                recv = client_sock.recv(1024)
+                strings = recv.split(b'\n')
+                if len(strings) == 1:
+                    buffer += strings[0]
+                else:
+                    buffer += strings[-1]
+                    for string in strings[:-1]:
+                        message = string.rstrip().decode('utf-8')
+                        addr = client_sock.getpeername()
+                        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
+                        messages.append(message)
+        
+            for message in messages:
+                bytes_sent = self.send_message(message, client_sock)
+
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
