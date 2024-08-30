@@ -51,23 +51,21 @@ class Server:
         client socket will also be closed
         """
         try:
-            messages = []
+            message = None
             buffer = b''
-            while not len(messages):
+            while not message:
                 recv = client_sock.recv(1024)
-                strings = recv.split(b'\n')
-                if len(strings) == 1:
-                    buffer += strings[0]
-                else:
-                    buffer += strings[-1]
+                buffer += recv
+                strings = buffer.split(b'\n')
+                if len(strings) > 1: # consume message and ignore leftover
                     for string in strings[:-1]:
-                        message = string.rstrip().decode('utf-8')
-                        addr = client_sock.getpeername()
-                        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
-                        messages.append(message)
-        
-            for message in messages:
-                bytes_sent = self.send_message(message, client_sock)
+                        if string:
+                            message = string 
+                            break
+            message = message.rstrip().decode('utf-8')
+            addr = client_sock.getpeername()
+            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
+            bytes_sent = self.send_message(message, client_sock)
 
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
