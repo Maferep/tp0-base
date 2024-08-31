@@ -130,5 +130,10 @@ func createMessage(c *Client, n string, a string, d string, nac string, num stri
 		c.config.ID,
 		msg,
 	)
+	// TODO: wait for server confirm
+	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
+		d,
+		num,
+	)
 	return nil
 }
