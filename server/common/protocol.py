@@ -18,9 +18,6 @@ class MessageStream:
 		message = message.rstrip().decode('utf-8')
 		return message
 
-
-
-
 def parse_bet(message):
 	args = message.split("|")
 	if len(args) != 5:
