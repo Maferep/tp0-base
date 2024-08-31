@@ -66,7 +66,6 @@ func (c *Client) StartClientLoop() {
 	// Messages if the message amount threshold has not been surpassed
 
 	timer := make(chan string, 1)
-
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	is_done := false
@@ -77,42 +76,37 @@ func (c *Client) StartClientLoop() {
 		timer <- "Got a signal!"
 	}()
 
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an}
-		err := c.createClientSocket()
-
+	err := c.createClientSocket()
+	if err != nil {
+		fmt.Println("Got an error creating the socket")
+	} else {
+		err := createMessage(c, 0)
 		if err != nil {
-			fmt.Println("Got an error creating the socket")
-			break
-		}
-
-		// TODO: Modify the send to avoid short-write
-		shouldReturn := createMessage(c, msgID)
-		if shouldReturn {
 			return
 		}
-
-		go wait(timer, c.config.LoopPeriod)
-		<-timer
-
-		if is_done {
-			fmt.Println("Graceful shutdown!")
-			c.conn.Close()
-			break
-		}
-
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	go wait(timer, c.config.LoopPeriod)
+	<-timer
+
+	if is_done {
+		fmt.Println("Graceful shutdown!")
+		c.conn.Close()
+	} else {
+		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	}
 }
 
-func createMessage(c *Client, msgID int) bool {
+func createMessage(c *Client, msgID int) error {
 
 	fmt.Fprintf(
 		c.conn,
-		"[CLIENT %v] Message N°%v\n",
-		c.config.ID,
-		msgID,
-	)
+		"%v|%v|%v|%v|%v\n",
+		"nombre",
+		"apellido",
+		"documento",
+		"nacimiento",
+		"numero")
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
@@ -121,12 +115,12 @@ func createMessage(c *Client, msgID int) bool {
 			c.config.ID,
 			err,
 		)
-		return true
+		return err
 	}
 
 	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 		c.config.ID,
 		msg,
 	)
-	return false
+	return nil
 }
