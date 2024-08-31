@@ -17,6 +17,11 @@ services:
     environment:
       - CLI_ID=1
       - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=MAFER
+      - APELLIDO=PONT
+      - DOCUMENTO=123456
+      - NACIMIENTO=1999-03-17
+      - NUMERO=7574
     networks:
       - testing_net
     depends_on:

@@ -76,11 +76,19 @@ func (c *Client) StartClientLoop() {
 		timer <- "Got a signal!"
 	}()
 
+	// environment variables
+	nombre := os.Getenv("NOMBRE")
+	apellido := os.Getenv("APELLIDO")
+	documento := os.Getenv("DOCUMENTO")
+	nacimiento := os.Getenv("NACIMIENTO")
+	numero := os.Getenv("NUMERO")
+
+	// create socket and message
 	err := c.createClientSocket()
 	if err != nil {
 		fmt.Println("Got an error creating the socket")
 	} else {
-		err := createMessage(c, 0)
+		err := createMessage(c, nombre, apellido, documento, nacimiento, numero)
 		if err != nil {
 			return
 		}
@@ -97,16 +105,16 @@ func (c *Client) StartClientLoop() {
 	}
 }
 
-func createMessage(c *Client, msgID int) error {
+func createMessage(c *Client, n string, a string, d string, nac string, num string) error {
 
 	fmt.Fprintf(
 		c.conn,
 		"%v|%v|%v|%v|%v\n",
-		"nombre",
-		"apellido",
-		"documento",
-		"nacimiento",
-		"numero")
+		n,
+		a,
+		d,
+		nac,
+		num)
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
