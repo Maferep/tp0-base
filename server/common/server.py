@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from common.utils import Bet, store_bets
+from common.protocol import parse_bet, MessageStream
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -43,13 +43,6 @@ class Server:
             bytes_sent += client_sock.send(sending[bytes_sent:])
         return bytes_sent
 
-    @staticmethod
-    def parse_bet(message):
-        args = message.split("|")
-        if len(args) != 5:
-            print(f"this is bullshit ${args}")
-        return Bet(123, args[0], args[1], args[2], args[3], args[4])
-        
     def __handle_client_connection(self, client_sock):
         """
         Read message from a specific client socket and closes the socket
@@ -58,19 +51,8 @@ class Server:
         client socket will also be closed
         """
         try:
-            message = None
-            buffer = b''
-            while not message:
-                recv = client_sock.recv(1024)
-                buffer += recv
-                strings = buffer.split(b'\n')
-                if len(strings) > 1: # consume message and ignore leftover
-                    for string in strings[:-1]:
-                        if string:
-                            message = string 
-                            break
-            message = message.rstrip().decode('utf-8')
-            bet = self.parse_bet(message)
+            message = MessageStream(client_sock).get_message()
+            bet = parse_bet(message)
             store_bets([bet])
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
 
