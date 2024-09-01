@@ -12,6 +12,8 @@ services:
 
   client1:
     container_name: client1
+    volumes:
+      - dataset:/var/lib/client/data
     image: client:latest
     entrypoint: /client
     environment:
@@ -29,6 +31,8 @@ services:
 
   client2:
     container_name: client2
+    volumes:
+      - dataset:/var/lib/client/data
     image: client:latest
     entrypoint: /client
     environment:
@@ -45,6 +49,8 @@ services:
       - server
   client3:
     container_name: client3
+    volumes:
+      - dataset:/var/lib/client/data
     image: client:latest
     entrypoint: /client
     environment:
@@ -61,6 +67,8 @@ services:
       - server
   client4:
     container_name: client4
+    volumes:
+      - dataset:/var/lib/client/data
     image: client:latest
     entrypoint: /client
     environment:
@@ -77,6 +85,8 @@ services:
       - server
   client5:
     container_name: client5
+    volumes:
+      - dataset:/var/lib/client/data
     image: client:latest
     entrypoint: /client
     environment:
@@ -91,6 +101,9 @@ services:
       - testing_net
     depends_on:
       - server
+volumes:
+  dataset:
+    external: true
 networks:
   testing_net:
     ipam:
