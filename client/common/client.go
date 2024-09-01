@@ -109,7 +109,17 @@ func createMessage(c *Client, n string, a string, d string, nac string, num stri
 
 	fmt.Fprintf(
 		c.conn,
-		"%v|%v|%v|%v|%v\n",
+		"3//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v\n",
+		n,
+		a,
+		d,
+		nac,
+		num,
+		n,
+		a,
+		d,
+		nac,
+		num,
 		n,
 		a,
 		d,
