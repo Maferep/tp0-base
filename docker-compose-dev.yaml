@@ -15,7 +15,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=2
+      - CLI_ID=1
       - CLI_LOG_LEVEL=DEBUG
       - NOMBRE=MAFER
       - APELLIDO=PONT
@@ -32,7 +32,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=3
+      - CLI_ID=2
       - CLI_LOG_LEVEL=DEBUG
       - NOMBRE=MAFER
       - APELLIDO=PONT
@@ -48,7 +48,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=4
+      - CLI_ID=3
       - CLI_LOG_LEVEL=DEBUG
       - NOMBRE=MAFER
       - APELLIDO=PONT
@@ -64,7 +64,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=5
+      - CLI_ID=4
       - CLI_LOG_LEVEL=DEBUG
       - NOMBRE=MAFER
       - APELLIDO=PONT
@@ -80,7 +80,7 @@ services:
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=1
+      - CLI_ID=5
       - CLI_LOG_LEVEL=DEBUG
       - NOMBRE=MAFER
       - APELLIDO=PONT
