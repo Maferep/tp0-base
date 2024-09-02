@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,10 +63,23 @@ func wait(timer chan string, d time.Duration) {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop() error {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
+	client_id := os.Getenv("CLI_ID")
+	client_id_value, err := strconv.Atoi(client_id)
+	if err != nil {
+		panic(err)
+	}
+	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
+	file, err := os.Open(name)
+	if err != nil {
+		panic(err)
+	}
+	// remember to close the file at the end of the program
+	defer file.Close()
 
+	// set up orderly interrupt function
 	timer := make(chan string, 1)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
@@ -76,55 +91,59 @@ func (c *Client) StartClientLoop() {
 		timer <- "Got a signal!"
 	}()
 
-	// environment variables
-	nombre := os.Getenv("NOMBRE")
-	apellido := os.Getenv("APELLIDO")
-	documento := os.Getenv("DOCUMENTO")
-	nacimiento := os.Getenv("NACIMIENTO")
-	numero := os.Getenv("NUMERO")
+	// read the file line by line
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		// parse csv line
+		bet_text := scanner.Text()
+		datapoints := strings.Split(bet_text, ",")
+		if len(datapoints) != 5 {
+			panic(datapoints)
+		}
+		nombre := datapoints[0]
+		apellido := datapoints[1]
+		documento := datapoints[2]
+		nacimiento := datapoints[3]
+		numero := datapoints[4]
 
-	// create socket and message
-	err := c.createClientSocket()
-	if err != nil {
-		fmt.Println("Got an error creating the socket")
-	} else {
-		err := createMessage(c, nombre, apellido, documento, nacimiento, numero)
-		if err != nil {
-			return
+		// create socket and message
+		_err := CreateSocketAndSendMessage(c, nombre, apellido, documento, nacimiento, numero)
+		if _err != nil {
+			return err
+		}
+
+		go wait(timer, c.config.LoopPeriod)
+		<-timer
+
+		if is_done {
+			fmt.Println("Graceful shutdown!")
+			c.conn.Close()
+			break
+		} else {
+			log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 		}
 	}
 
-	go wait(timer, c.config.LoopPeriod)
-	<-timer
-
-	if is_done {
-		fmt.Println("Graceful shutdown!")
-		c.conn.Close()
-	} else {
-		log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	if err := scanner.Err(); err != nil {
+		return err
 	}
+	return nil
 }
 
-func createMessage(c *Client, n string, a string, d string, nac string, num string) error {
-
-	fmt.Fprintf(
-		c.conn,
-		"3//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v\n",
-		n,
-		a,
-		d,
-		nac,
-		num,
-		n,
-		a,
-		d,
-		nac,
-		num,
-		n,
-		a,
-		d,
-		nac,
-		num)
+/*
+Returns a boolean indicating whether a signal interruption occured, and an error value if an error occured
+*/
+func CreateSocketAndSendMessage(c *Client, nombre string, apellido string, documento string, nacimiento string, numero string) error {
+	err := c.createClientSocket()
+	if err != nil {
+		fmt.Println("Got an error creating the socket")
+		return nil
+	}
+	err = SendMessage(c, nombre, apellido, documento, nacimiento, numero)
+	if err != nil {
+		return err
+	}
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
@@ -142,8 +161,32 @@ func createMessage(c *Client, n string, a string, d string, nac string, num stri
 	)
 	// TODO: wait for server confirm
 	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
-		d,
-		num,
+		documento,
+		numero,
 	)
 	return nil
+}
+
+func SendMessage(c *Client, n string, a string, d string, nac string, num string) error {
+	// TODO Fix short write
+	_, err := fmt.Fprintf(
+		c.conn,
+		"3//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v\n",
+		n,
+		a,
+		d,
+		nac,
+		num,
+		n,
+		a,
+		d,
+		nac,
+		num,
+		n,
+		a,
+		d,
+		nac,
+		num)
+
+	return err
 }
