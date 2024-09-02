@@ -175,11 +175,16 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 			err,
 		)
 		return err
+	} else if msg != "OK\n" {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Incorrect Server Response %v",
+			c.config.ID, msg)
+	} else {
+		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+			c.config.ID,
+			msg,
+		)
+
 	}
 
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-		c.config.ID,
-		msg,
-	)
 	return nil
 }

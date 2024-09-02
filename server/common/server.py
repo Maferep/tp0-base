@@ -37,7 +37,6 @@ class Server:
         print("Shutting down...")
 
     def send_message(self, message, client_sock):
-        # TODO: Modify the send to avoid short-writes
         sending = "{}\n".format(message).encode('utf-8')
         bytes_sent = 0
         while bytes_sent < len(sending):
@@ -59,7 +58,9 @@ class Server:
 
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
-            bytes_sent = self.send_message(message, client_sock)
+
+            response = "OK"
+            bytes_sent = self.send_message(response, client_sock)
 
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
