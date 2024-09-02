@@ -101,12 +101,16 @@ services:
       - testing_net
     depends_on:
       - server
-volumes:
-  dataset:
-    external: true
 networks:
   testing_net:
     ipam:
       driver: default
       config:
         - subnet: 172.25.125.0/24
+volumes:
+  dataset:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind 
+      device: ${PWD}/.data
