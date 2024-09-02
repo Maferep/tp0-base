@@ -107,14 +107,19 @@ func (c *Client) StartClientLoop() error {
 		// build batch collection from batch.maxAmount parameter
 		*rows = append(*rows, datapoints)
 
-		if len(*rows) == c.config.MaxAmount {
+		if (len(*rows) == c.config.MaxAmount) || (ByteLength(rows) > 8*1024) {
 			// create socket and message
 			_err := CreateSocketAndSendMessage(c, rows)
 			if _err != nil {
 				return err
 			}
-
-			*rows = nil // TODO reallocates memory - might be suboptimal
+			if ByteLength(rows) > 8*1024 { // handle case where packet exceeds 8kb, letting the last row of data be sent in the next batch
+				last_packet := (*rows)[len(*rows)-1]
+				*rows = nil // TODO reallocates memory - might be suboptimal
+				*rows = append(*rows, last_packet)
+			} else {
+				*rows = nil
+			}
 
 			go wait(timer, c.config.LoopPeriod)
 			<-timer
@@ -132,6 +137,22 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 	return nil
+}
+
+// an upper bound on the byte length of the batch packet produced from this data. depends on the protocol
+func ByteLength(rows *[][]string) int {
+	total_bytes := 0
+	// size of rows
+	total_bytes += len(strconv.Itoa(len(*rows)))
+	for _, row := range *rows {
+		total_bytes += 6 // determined by the protocol and separators
+		for _, datapoint := range row {
+			total_bytes += len(datapoint)
+		}
+	}
+	//terminating newline
+	total_bytes += 1
+	return total_bytes
 }
 
 /*
