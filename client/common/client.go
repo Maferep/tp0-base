@@ -23,6 +23,7 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	MaxAmount     int
 }
 
 // Client Entity that encapsulates how
@@ -94,6 +95,7 @@ func (c *Client) StartClientLoop() error {
 	// read the file line by line
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
+	rows := new([][]string)
 	for scanner.Scan() {
 		// parse csv line
 		bet_text := scanner.Text()
@@ -101,29 +103,30 @@ func (c *Client) StartClientLoop() error {
 		if len(datapoints) != 5 {
 			panic(datapoints)
 		}
-		nombre := datapoints[0]
-		apellido := datapoints[1]
-		documento := datapoints[2]
-		nacimiento := datapoints[3]
-		numero := datapoints[4]
 
-		// create socket and message
-		_err := CreateSocketAndSendMessage(c, nombre, apellido, documento, nacimiento, numero)
-		if _err != nil {
-			return err
+		// build batch collection from batch.maxAmount parameter
+		*rows = append(*rows, datapoints)
+
+		if len(*rows) == c.config.MaxAmount {
+			// create socket and message
+			_err := CreateSocketAndSendMessage(c, rows)
+			if _err != nil {
+				return err
+			}
+
+			*rows = nil // TODO reallocates memory - might be suboptimal
+
+			go wait(timer, c.config.LoopPeriod)
+			<-timer
+
 		}
-
-		go wait(timer, c.config.LoopPeriod)
-		<-timer
-
 		if is_done {
 			fmt.Println("Graceful shutdown!")
 			c.conn.Close()
 			break
-		} else {
-			log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 		}
 	}
+	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 
 	if err := scanner.Err(); err != nil {
 		return err
@@ -134,16 +137,35 @@ func (c *Client) StartClientLoop() error {
 /*
 Returns a boolean indicating whether a signal interruption occured, and an error value if an error occured
 */
-func CreateSocketAndSendMessage(c *Client, nombre string, apellido string, documento string, nacimiento string, numero string) error {
+func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
+	// build batch message
+	batch := ""
+	batch += strconv.Itoa(len(*data))
+	for _, datapoints := range *data {
+		nombre := datapoints[0]
+		apellido := datapoints[1]
+		documento := datapoints[2]
+		nacimiento := datapoints[3]
+		numero := datapoints[4]
+		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
+		batch += line
+	}
+	batch += "\n"
+
+	// create socket
 	err := c.createClientSocket()
 	if err != nil {
 		fmt.Println("Got an error creating the socket")
-		return nil
+		return err
 	}
-	err = SendMessage(c, nombre, apellido, documento, nacimiento, numero)
+
+	// TODO Fix short write
+	_, err = c.conn.Write([]byte(batch))
 	if err != nil {
 		return err
 	}
+
+	// receive server message
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
@@ -159,34 +181,5 @@ func CreateSocketAndSendMessage(c *Client, nombre string, apellido string, docum
 		c.config.ID,
 		msg,
 	)
-	// TODO: wait for server confirm
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
-		documento,
-		numero,
-	)
 	return nil
-}
-
-func SendMessage(c *Client, n string, a string, d string, nac string, num string) error {
-	// TODO Fix short write
-	_, err := fmt.Fprintf(
-		c.conn,
-		"3//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v//%v|%v|%v|%v|%v\n",
-		n,
-		a,
-		d,
-		nac,
-		num,
-		n,
-		a,
-		d,
-		nac,
-		num,
-		n,
-		a,
-		d,
-		nac,
-		num)
-
-	return err
 }
