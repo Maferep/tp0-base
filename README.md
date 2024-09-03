@@ -4,10 +4,9 @@ Client-server text protocol made up of variable length messages separated by new
 _central de Lotería Nacional_
 ## Client 
 _agencia de quiniela_
-Client sends exactly one message with a terminating newline and closes the connection (ej5).
+Envia mensaje batch con cada linea del batch separada por //. Al comienzo indica el nombre de la agencia y la cantidad de lineas.
 
-
-Message: [nombre]|[apellido]|[documento]|[nacimiento]|[número]\n
+agencia|tamanio_batch//nombre|apellido|documento|nacimiento|numero//...//nombre|apellido|documento|nacimiento|numero
 
 _nacimiento_: YYYY-MM-DD
 Every other field is alphanumeric plus periods, spaces.

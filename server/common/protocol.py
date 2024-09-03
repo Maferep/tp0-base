@@ -21,15 +21,25 @@ class MessageStream:
 		return message
 
 def parse_message(message):
+	'''returns a tuple containing the type of mesage (Either a list of bets "Bets" or a Done tuple ("Done")). 
+	For example,
+	("Bets", [Bet1, Bet2, Bet3]) 
+	("Done", agency_number)
+	'''
+	if message[:4] == "Done":
+		agency_id = message.split("|")[1]
+		return ("Done", int(agency_id))
 	args = message.split('//')
-	size = args[0]
+	batch_data = args[0].split("|")
+	agency_id = batch_data[0]
+	size = batch_data[1]
 	bets = args[1:]
 	if not size.isnumeric() or not (len(bets) == int(size)):
 		raise ValueError("Wrong batch size:{}".format(message))
 	parsed_bets = []
 	for bet in bets:
 		parsed_bets.append(parse_bet(bet))
-	return parsed_bets
+	return ("Bets",parsed_bets)
 
 def parse_bet(message):
 	args = message.split("|")

@@ -58,11 +58,6 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func wait(timer chan string, d time.Duration) {
-	time.Sleep(d)
-	timer <- "done sleeping"
-}
-
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() error {
 	// There is an autoincremental msgID to identify every message sent
@@ -169,6 +164,9 @@ Returns a boolean indicating whether a signal interruption occured, and an error
 func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	// build batch message
 	batch := ""
+	agencia := c.config.ID
+	batch += agencia
+	batch += "|"
 	batch += strconv.Itoa(len(*data))
 	for _, datapoints := range *data {
 		nombre := datapoints[0]
@@ -184,7 +182,7 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	// create socket
 	err := c.createClientSocket()
 	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Bad Socket %v",
+		log.Errorf("action: create_client_socket | result: fail | client_id: %v | error: Bad Socket %v",
 			c.config.ID,
 			err,
 		)
@@ -198,7 +196,7 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 		_written, err := c.conn.Write([]byte(batch[written:]))
 		written += _written
 		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			log.Errorf("action: bad write | result: fail | client_id: %v | error: %v",
 				c.config.ID,
 				err,
 			)
@@ -223,8 +221,9 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 			c.config.ID,
 			msg,
 		)
-
 	}
+
+	c.ConfirmEndOfLoop()
 
 	return nil
 }
@@ -241,7 +240,8 @@ func (c *Client) ConfirmEndOfLoop() error {
 	}
 	defer c.conn.Close()
 
-	batch := "Done writing"
+	batch := fmt.Sprintf("Done|%v\n", c.config.ID)
+
 	// write without short writes
 	written := 0
 	for written < len(batch) {

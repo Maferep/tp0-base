@@ -52,20 +52,24 @@ class Server:
         """
         try:
             message = MessageStream(client_sock).get_message()
-            bets = parse_message(message)
-            store_bets(bets)
-            logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
+            description, content = parse_message(message)
+            if description == "Done":
+                print("received a done message from {}".format(content))
+            else:
+                bets = content
+                store_bets(bets)
+                logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
 
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
+                addr = client_sock.getpeername()
+                logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
 
-            response = "OK"
-            bytes_sent = self.send_message(response, client_sock)
+                response = "OK"
+                bytes_sent = self.send_message(response, client_sock)
 
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: receive_message | result: fail | error: {e}")
         except Exception as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
 
