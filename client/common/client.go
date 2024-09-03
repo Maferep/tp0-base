@@ -195,7 +195,8 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	// write without short writes
 	written := 0
 	for written < len(batch) {
-		written, err = c.conn.Write([]byte(batch))
+		_written, err := c.conn.Write([]byte(batch[written:]))
+		written += _written
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
 				c.config.ID,
@@ -229,7 +230,30 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 }
 
 func (c *Client) ConfirmEndOfLoop() error {
-	// short write will return error explaining why write was short
-	_, err := bufio.NewWriter(c.conn).WriteString("Done writing")
+	// create socket
+	err := c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Bad Socket %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+	defer c.conn.Close()
+
+	batch := "Done writing"
+	// write without short writes
+	written := 0
+	for written < len(batch) {
+		_written, err := c.conn.Write([]byte(batch[written:]))
+		written += _written
+		if err != nil {
+			log.Errorf("ERROR WRITING DONE WRITING | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return err
+		}
+	}
 	return err
 }
