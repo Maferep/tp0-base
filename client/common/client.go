@@ -190,6 +190,7 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 		)
 		return err
 	}
+	defer c.conn.Close()
 
 	// write without short writes
 	written := 0
