@@ -70,12 +70,20 @@ func (c *Client) StartClientLoop() error {
 	client_id := os.Getenv("CLI_ID")
 	client_id_value, err := strconv.Atoi(client_id)
 	if err != nil {
-		panic(err)
+		log.Criticalf(
+			"action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 	}
 	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
 	file, err := os.Open(name)
 	if err != nil {
-		panic(err)
+		log.Criticalf(
+			"action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 	}
 	// remember to close the file at the end of the program
 	defer file.Close()
@@ -126,7 +134,6 @@ func (c *Client) StartClientLoop() error {
 
 		}
 		if is_done {
-			fmt.Println("Graceful shutdown!")
 			c.conn.Close()
 			break
 		}
@@ -137,11 +144,10 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
-
 	if err := scanner.Err(); err != nil {
 		return err
 	}
+	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
 }
 
@@ -182,19 +188,42 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	// create socket
 	err := c.createClientSocket()
 	if err != nil {
-		fmt.Println("Got an error creating the socket")
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Bad Socket %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+	defer c.conn.Close()
+
+	writer := bufio.NewWriter(c.conn)
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+	_, err = writer.WriteString(batch)
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 		return err
 	}
 
-	// TODO Fix short write
-	_, err = c.conn.Write([]byte(batch))
+	err = writer.Flush()
 	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 		return err
 	}
 
 	// receive server message
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
 
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
@@ -214,4 +243,10 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	}
 
 	return nil
+}
+
+func (c *Client) ConfirmEndOfLoop() error {
+	// short write will return error explaining why write was short
+	_, err := bufio.NewWriter(c.conn).WriteString("Done writing")
+	return err
 }
