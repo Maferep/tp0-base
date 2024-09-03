@@ -194,32 +194,18 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 		)
 		return err
 	}
-	defer c.conn.Close()
 
-	writer := bufio.NewWriter(c.conn)
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-	_, err = writer.WriteString(batch)
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-
-	err = writer.Flush()
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
-		return err
+	// write without short writes
+	written := 0
+	for written < len(batch) {
+		written, err = c.conn.Write([]byte(batch))
+		if err != nil {
+			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return err
+		}
 	}
 
 	// receive server message
