@@ -129,15 +129,19 @@ func (c *Client) StartClientLoop() error {
 			break
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
 	// finish off last batch of data (does not handle MaxSize scenario)
 	_err := CreateSocketAndSendMessage(c, rows)
 	if _err != nil {
 		return err
 	}
 
-	if err := scanner.Err(); err != nil {
-		return err
-	}
+	c.ConfirmEndOfLoop()
+
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
 }
@@ -222,8 +226,6 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 			msg,
 		)
 	}
-
-	c.ConfirmEndOfLoop()
 
 	return nil
 }
