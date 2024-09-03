@@ -128,10 +128,6 @@ func (c *Client) StartClientLoop() error {
 			} else {
 				*rows = nil
 			}
-
-			go wait(timer, c.config.LoopPeriod)
-			<-timer
-
 		}
 		if is_done {
 			c.conn.Close()
