@@ -95,6 +95,17 @@ func (c *Client) StartClientLoop() error {
 		timer <- "Got a signal!"
 	}()
 
+	// Create socket
+	err = c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: create_client_socket | result: fail | client_id: %v | error: Bad Socket %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+	defer c.conn.Close()
+
 	// read the file line by line
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
@@ -112,7 +123,7 @@ func (c *Client) StartClientLoop() error {
 
 		if (len(*rows) == c.config.MaxAmount) || (ByteLength(rows) > 8*1024) {
 			// create socket and message
-			_err := CreateSocketAndSendMessage(c, rows)
+			_err := SendMessage(c, rows)
 			if _err != nil {
 				return err
 			}
@@ -135,7 +146,7 @@ func (c *Client) StartClientLoop() error {
 	}
 
 	// finish off last batch of data (does not handle MaxSize scenario)
-	_err := CreateSocketAndSendMessage(c, rows)
+	_err := SendMessage(c, rows)
 	if _err != nil {
 		return err
 	}
@@ -165,34 +176,9 @@ func ByteLength(rows *[][]string) int {
 /*
 Returns a boolean indicating whether a signal interruption occured, and an error value if an error occured
 */
-func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
+func SendMessage(c *Client, data *[][]string) error {
 	// build batch message
-	batch := ""
-	agencia := c.config.ID
-	batch += agencia
-	batch += "|"
-	batch += strconv.Itoa(len(*data))
-	for _, datapoints := range *data {
-		nombre := datapoints[0]
-		apellido := datapoints[1]
-		documento := datapoints[2]
-		nacimiento := datapoints[3]
-		numero := datapoints[4]
-		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
-		batch += line
-	}
-	batch += "\n"
-
-	// create socket
-	err := c.createClientSocket()
-	if err != nil {
-		log.Errorf("action: create_client_socket | result: fail | client_id: %v | error: Bad Socket %v",
-			c.config.ID,
-			err,
-		)
-		return err
-	}
-	defer c.conn.Close()
+	batch := batchBuilder(c, data)
 
 	// write without short writes
 	written := 0
@@ -230,20 +216,27 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	return nil
 }
 
-func (c *Client) ConfirmEndOfLoop() error {
-	// create socket
-	err := c.createClientSocket()
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Bad Socket %v",
-			c.config.ID,
-			err,
-		)
-		return err
+func batchBuilder(c *Client, data *[][]string) string {
+	batch := ""
+	agencia := c.config.ID
+	batch += agencia
+	batch += "|"
+	batch += strconv.Itoa(len(*data))
+	for _, datapoints := range *data {
+		nombre := datapoints[0]
+		apellido := datapoints[1]
+		documento := datapoints[2]
+		nacimiento := datapoints[3]
+		numero := datapoints[4]
+		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
+		batch += line
 	}
-	defer c.conn.Close()
+	batch += "\n"
+	return batch
+}
 
+func (c *Client) ConfirmEndOfLoop() error {
 	batch := fmt.Sprintf("Done|%v\n", c.config.ID)
-
 	// write without short writes
 	written := 0
 	for written < len(batch) {
@@ -257,5 +250,5 @@ func (c *Client) ConfirmEndOfLoop() error {
 			return err
 		}
 	}
-	return err
+	return nil
 }

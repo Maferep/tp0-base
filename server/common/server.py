@@ -49,38 +49,43 @@ class Server:
 
     def __handle_client_connection(self, client_sock):
         """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
+        Reads as many messages as it can until it encounters "done" message or error.
         """
-        try:
-            message = MessageStream(client_sock).get_message()
-            description, content = parse_message(message)
-            if description == "Done":
-                try:
-                    print("received a done message from {}".format(content))
-                    client_id = int(content)
-                    self.client_state.receive_done_message(client_id)
-                except Exception as e:
-                    logging.error(f"action: receive_message | result: fail | error: {e}")
-            else:
-                bets = content
-                store_bets(bets)
-                logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
+        done = False
+        stream = MessageStream(client_sock) # buffers messages from the client socket
+        while not done:
+            try:
+                message = stream.get_message()
+                description, content = parse_message(message)
+                if description == "Done":
+                    try:
+                        done = True
+                        print("received a done message from {}".format(content))
+                        client_id = int(content)
+                        self.client_state.receive_done_message(client_id)
+                    except Exception as e:
+                        logging.error(f"action: receive_message | result: fail | error: {e}")
+                        break
+                else:
+                    bets = content
+                    store_bets(bets)
+                    logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
 
-                addr = client_sock.getpeername()
-                logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
+                    addr = client_sock.getpeername()
+                    logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
 
-                response = "OK"
-                bytes_sent = self.send_message(response, client_sock)
+                    response = "OK"
+                    bytes_sent = self.send_message(response, client_sock)
 
-        except OSError as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
-        except Exception as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
+            except OSError as e:
+                logging.error(f"action: receive_message | result: fail | error: {e}")
+                break
+            except Exception as e:
+                logging.error(f"action: receive_message | result: fail | error: {e}")
+                break
+        
+        client_sock.close()
+        return done
 
     def __accept_new_connection(self):
         """
