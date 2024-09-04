@@ -3,6 +3,7 @@ import logging
 import signal
 from common.protocol import parse_message, MessageStream
 from common.utils import store_bets
+from common.client_state import Clients
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -11,6 +12,9 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._exit_signal = False
+
+        # business logic
+        self.client_state = Clients(5)
 
     def _exit_gracefully(self, signum, frame):
         self._exit_signal = True
@@ -54,7 +58,12 @@ class Server:
             message = MessageStream(client_sock).get_message()
             description, content = parse_message(message)
             if description == "Done":
-                print("received a done message from {}".format(content))
+                try:
+                    print("received a done message from {}".format(content))
+                    client_id = int(content)
+                    self.client_state.receive_done_message(client_id)
+                except Exception as e:
+                    logging.error(f"action: receive_message | result: fail | error: {e}")
             else:
                 bets = content
                 store_bets(bets)

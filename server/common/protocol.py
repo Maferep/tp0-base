@@ -38,11 +38,11 @@ def parse_message(message):
 		raise ValueError("Wrong batch size:{}".format(message))
 	parsed_bets = []
 	for bet in bets:
-		parsed_bets.append(parse_bet(bet))
+		parsed_bets.append(parse_bet(bet, agency_id))
 	return ("Bets",parsed_bets)
 
-def parse_bet(message):
+def parse_bet(message, agency_id):
 	args = message.split("|")
 	if len(args) != 5:
 		print(f"Bad message ${args}")
-	return Bet(123, args[0], args[1], args[2], args[3], args[4])
+	return Bet(agency_id, args[0], args[1], args[2], args[3], args[4])
