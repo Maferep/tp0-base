@@ -87,11 +87,11 @@ func (c *Client) StartClientLoop() error {
 	timer := make(chan string, 1)
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
-	is_done := false
+	signaled := false
 	go func() {
 		<-signals
 		fmt.Println("we got a signal!")
-		is_done = true
+		signaled = true
 		timer <- "Got a signal!"
 	}()
 
@@ -135,8 +135,7 @@ func (c *Client) StartClientLoop() error {
 				*rows = nil
 			}
 		}
-		if is_done {
-			c.conn.Close()
+		if signaled {
 			break
 		}
 	}
@@ -152,6 +151,9 @@ func (c *Client) StartClientLoop() error {
 	}
 
 	c.ConfirmEndOfLoop()
+
+	// immediately after finishing send, request contest results
+	c.RequestRaffleWinners()
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
@@ -179,20 +181,7 @@ Returns a boolean indicating whether a signal interruption occured, and an error
 func SendMessage(c *Client, data *[][]string) error {
 	// build batch message
 	batch := batchBuilder(c, data)
-
-	// write without short writes
-	written := 0
-	for written < len(batch) {
-		_written, err := c.conn.Write([]byte(batch[written:]))
-		written += _written
-		if err != nil {
-			log.Errorf("action: bad write | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return err
-		}
-	}
+	c.SendAll(batch)
 
 	// receive server message
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
@@ -238,6 +227,15 @@ func batchBuilder(c *Client, data *[][]string) string {
 func (c *Client) ConfirmEndOfLoop() error {
 	batch := fmt.Sprintf("Done|%v\n", c.config.ID)
 	// write without short writes
+	return c.SendAll(batch)
+}
+
+func (c *Client) RequestRaffleWinners() error {
+	batch := fmt.Sprintf("RequestWinners|%v\n", c.config.ID)
+	return c.SendAll(batch)
+}
+
+func (c *Client) SendAll(batch string) error {
 	written := 0
 	for written < len(batch) {
 		_written, err := c.conn.Write([]byte(batch[written:]))

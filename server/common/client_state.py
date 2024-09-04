@@ -1,13 +1,20 @@
 from common.utils import load_bets, has_won
+from common.protocol import parse_message, MessageStream, send_message
 class Client:
     def __init__(self, id):
         assert(isinstance(id, int))
         self.id = id
         self.done = False
+        self.wants_results = False
+        self.socket = None
         # self.requested_results = False
 
     def receive_done_message(self):
         self.done = True
+    def request_results(self):
+        self.wants_results = True
+    def requested_results(self):
+        return self.wants_results
 
     # def receive_request_for_results()
 
@@ -25,9 +32,12 @@ class Clients:
         if self.done_counter == len(self.client_state.keys()):
             winners = self.do_poll()
             self.announce_winners(winners)
+
+    def request_results(self, id):
+        print(f"Got result request from {id}")
+        self.client_state[id].request_results()
     
     def do_poll(self):
-        print("Do poll")
         bets = load_bets()
         winners = []
         for bet in bets:
@@ -35,7 +45,13 @@ class Clients:
                 winners.append(bet)
         return winners
 
+    def set_socket(self, _id, sock):
+        self.client_state[int(_id)].socket = sock
+
     def announce_winners(self, winners):
-        for i in range(1, 5+1):
-            agency_winners = [(bet.first_name) for bet in winners if bet.agency == i]
-            print(f"winners for {i}: {agency_winners}")
+        for id in range(1, 5+1):
+            agency_winners = [(bet.document) for bet in winners if bet.agency == id]
+            print(f"winners for {id}: {agency_winners}")
+            if self.client_state[id].requested_results(): # this should be true for every successful client
+                # send using socket associated with this id (it should still be open!)
+                send_message("Results|{}".format(agency_winners), self.client_state[id].socket)

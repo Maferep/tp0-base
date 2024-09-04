@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from common.protocol import parse_message, MessageStream
+from common.protocol import parse_message, MessageStream, send_message
 from common.utils import store_bets
 from common.client_state import Clients
 
@@ -40,34 +40,34 @@ class Server:
                 break
         print("Shutting down...")
 
-    def send_message(self, message, client_sock):
-        sending = "{}\n".format(message).encode('utf-8')
-        bytes_sent = 0
-        while bytes_sent < len(sending):
-            bytes_sent += client_sock.send(sending[bytes_sent:])
-        return bytes_sent
+    
 
     def __handle_client_connection(self, client_sock):
         """
         Reads as many messages as it can until it encounters "done" message or error.
         """
         done = False
+        client_id = None
         stream = MessageStream(client_sock) # buffers messages from the client socket
         while not done:
             try:
                 message = stream.get_message()
                 description, content = parse_message(message)
                 if description == "Done":
-                    try:
-                        done = True
-                        print("received a done message from {}".format(content))
-                        client_id = int(content)
-                        self.client_state.receive_done_message(client_id)
-                    except Exception as e:
-                        logging.error(f"action: receive_message | result: fail | error: {e}")
-                        break
+                    done = True
+                    print("received a done message from {}".format(content))
+                    client_id = int(content)
+                    self.client_state.receive_done_message(client_id)
+                elif description == "RequestWinners":
+                    print("got request!")
+                    self.client_state.request_results(client_id)
+                    response = "OK"
+                    bytes_sent = send_message(response, client_sock)
                 else:
-                    bets = content
+                    bets = content[0]
+                    client_id = content[1]
+                    # TODO bad way of doing it: update client id corresponding to the socket every bet received
+                    self.client_state.set_socket(client_id, client_sock)
                     store_bets(bets)
                     logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
 
@@ -75,7 +75,7 @@ class Server:
                     logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
 
                     response = "OK"
-                    bytes_sent = self.send_message(response, client_sock)
+                    bytes_sent = send_message(response, client_sock)
 
             except OSError as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")

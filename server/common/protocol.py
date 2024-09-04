@@ -21,28 +21,40 @@ class MessageStream:
 		return message
 
 def parse_message(message):
-	'''returns a tuple containing the type of mesage (Either a list of bets "Bets" or a Done tuple ("Done")). 
+	'''returns a tuple containing the type of mesage and its related values. 
 	For example,
-	("Bets", [Bet1, Bet2, Bet3]) 
+	("Bets", ([Bet1, Bet2, Bet3,...], agency_id))
 	("Done", agency_number)
 	'''
+	mesage = str(message)
 	if message[:4] == "Done":
 		agency_id = message.split("|")[1]
 		return ("Done", int(agency_id))
+	elif message[:14] == "RequestWinners":
+		agency_id = message.split("|")[1]
+		return ("RequestWinners", int(agency_id))
 	args = message.split('//')
 	batch_data = args[0].split("|")
 	agency_id = batch_data[0]
 	size = batch_data[1]
 	bets = args[1:]
+	print("size {}".format(size))
 	if not size.isnumeric() or not (len(bets) == int(size)):
 		raise ValueError("Wrong batch size:{}".format(message))
 	parsed_bets = []
 	for bet in bets:
 		parsed_bets.append(parse_bet(bet, agency_id))
-	return ("Bets",parsed_bets)
+	return ("Bets",(parsed_bets, agency_id))
 
 def parse_bet(message, agency_id):
 	args = message.split("|")
 	if len(args) != 5:
 		print(f"Bad message ${args}")
 	return Bet(agency_id, args[0], args[1], args[2], args[3], args[4])
+
+def send_message(message, client_sock):
+	sending = "{}\n".format(message).encode('utf-8')
+	bytes_sent = 0
+	while bytes_sent < len(sending):
+		bytes_sent += client_sock.send(sending[bytes_sent:])
+	return bytes_sent
