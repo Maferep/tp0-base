@@ -77,7 +77,7 @@ class Clients:
         self.client_state : dict = {}
         for i in range(1,quantity+1):
             self.client_state[i] = Client(i)
-            self.client_state[i].observer_of_done = self
+            self.client_state[i].listen_for_done(self)
     
     def do_poll(self):
         bets = load_bets()
