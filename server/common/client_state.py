@@ -20,18 +20,12 @@ class Client:
         print("received a done message from {}".format(self.id))
 
     def request_results(self):
-        '''
-        block reading from socket until we get results, then send them back to agencys
-        '''
         print(f"Got result request for {self.id}")
         self.state = "requested"
         if self.results_ready:
             send_message(self.results_ready, self.socket)
         else:
             self.queue.put(("Request", self.id))
-            # results_message = self.queue.get(timeout=0.1)[1]
-            send_message(results_message, self.socket)
-
     def handle_connection(self):
         while self.state == "batch":
             # read from net socket
@@ -47,15 +41,17 @@ class Client:
                 break
         while self.state == "done":
             print("were done")
-            break
-            # self.receive_request_message()
-        # we are in requested state, do nothing for now because of bug
-        while True:
-            pass
+            self.receive_request_message()
+        assert(self.state == "requested")
+        # name, results_message = self.queue.get(timeout = 0.1) #BUG
+        send_message("12345", self.socket)
 
     def receive_request_message(self):
+        print("getting message...")
+        message = self.stream.get_message()
+        description, content = parse_message(message)
         if description == "RequestWinners":
-            self.state = "requested"
+            self.request_results()
 
 
     def receive_message(self):
@@ -65,9 +61,6 @@ class Client:
         if description == "Done":
             _client_id = int(content)
             self.receive_done_message()
-        elif description == "RequestWinners":
-            self.state = "requested"
-            self.request_results() # blocks until we get results
         else:
             bets = content[0]
             _client_id = content[1]
