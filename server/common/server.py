@@ -40,24 +40,38 @@ class Server:
                 break
         print("Shutting down...")
 
+  
+    def receive_first_message(self, stream, client_sock) -> int: # TODO handle receive done message with no content
+        message = stream.get_message()
+        description, content = parse_message(message)
+        client_id = None
     
+        bets = content[0]
+        client_id = content[1]
+        store_bets(bets)
+        logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
+    
+        addr = client_sock.getpeername()
+        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
+    
+        response = "OK"
+        send_message(response, client_sock)
+        return int(client_id)  
 
-    def receive_message(self, stream, client_id, client_sock) -> (bool, int):
+    def receive_message(self, stream, client_id, client_sock) -> bool:
         done = False
         message = stream.get_message()
         description, content = parse_message(message)
         if description == "Done":
             print("received a done message from {}".format(content))
-            client_id = int(content)
+            _client_id = int(content)
             self.client_state.receive_done_message(client_id)
         elif description == "RequestWinners":
             self.client_state.request_results(client_id)
             done = True
         else:
             bets = content[0]
-            client_id = content[1]
-            # TODO bad way of doing it: update client id corresponding to the socket every bet received
-            self.client_state.set_socket(client_id, client_sock)
+            _client_id = content[1]
             store_bets(bets)
             logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
         
@@ -66,7 +80,7 @@ class Server:
         
             response = "OK"
             send_message(response, client_sock)
-        return done, int(client_id)
+        return done
 
     def __handle_client_connection(self, client_sock):
         """
@@ -75,9 +89,11 @@ class Server:
         done = False
         client_id = None
         stream = MessageStream(client_sock) # buffers messages from the client socket
+        client_id = self.receive_first_message(stream, client_sock) # use first batch to get client id
+        self.client_state.set_socket(client_id, client_sock)
         while not done:
             try:
-                done, client_id = self.receive_message(stream, client_id, client_sock)
+                done =  self.receive_message(stream, client_id, client_sock)
 
             except OSError as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
