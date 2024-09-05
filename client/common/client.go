@@ -144,17 +144,28 @@ func (c *Client) StartClientLoop() error {
 		return err
 	}
 
+	log.Infof("last batch")
 	// finish off last batch of data (does not handle MaxSize scenario)
 	_err := SendMessage(c, rows)
 	if _err != nil {
 		return err
 	}
 
+	log.Infof("end of loop")
 	c.ConfirmEndOfLoop()
 
+	log.Infof("about to request")
 	// immediately after finishing send, request contest results
-	c.RequestRaffleWinners()
-
+	err = c.RequestRaffleWinners()
+	if err != nil {
+		return err
+	}
+	log.Infof("sent request")
+	message, err := c.WaitForRaffleResults()
+	if err != nil {
+		return err
+	}
+	c.ParseResults(message)
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
 }
@@ -183,7 +194,7 @@ func SendMessage(c *Client, data *[][]string) error {
 	batch := batchBuilder(c, data)
 	c.SendAll(batch)
 
-	// receive server message
+	// receive server message TODO short read
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 
 	if err != nil {
@@ -231,8 +242,36 @@ func (c *Client) ConfirmEndOfLoop() error {
 }
 
 func (c *Client) RequestRaffleWinners() error {
-	batch := fmt.Sprintf("RequestWinners|%v\n", c.config.ID)
-	return c.SendAll(batch)
+	log.Infof("request winners")
+	message := fmt.Sprintf("RequestWinners|%v\n", c.config.ID)
+	return c.SendAll(message)
+}
+
+func (c *Client) WaitForRaffleResults() (string, error) {
+	log.Infof("waiting for results....")
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	log.Infof("is this raffle results?")
+	log.Infof(msg)
+	for {
+		if err != nil {
+			return "", err
+		} else if strings.HasPrefix(msg, "Results") {
+			return msg, nil
+		}
+		// ignores messages that arent raffle results
+		msg, err = bufio.NewReader(c.conn).ReadString('\n')
+	}
+}
+
+func (c *Client) ParseResults(message string) error {
+	args := strings.Split(message, "|")
+	winners := args[1:]
+	if len(winners) == 0 {
+		log.Infof("NO WINNERS")
+	} else {
+		log.Infof("WINNERS: %v", winners)
+	}
+	return nil
 }
 
 func (c *Client) SendAll(batch string) error {

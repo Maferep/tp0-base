@@ -54,15 +54,12 @@ class Server:
                 message = stream.get_message()
                 description, content = parse_message(message)
                 if description == "Done":
-                    done = True
                     print("received a done message from {}".format(content))
                     client_id = int(content)
                     self.client_state.receive_done_message(client_id)
                 elif description == "RequestWinners":
-                    print("got request!")
                     self.client_state.request_results(client_id)
-                    response = "OK"
-                    bytes_sent = send_message(response, client_sock)
+                    done = True
                 else:
                     bets = content[0]
                     client_id = content[1]
@@ -83,8 +80,6 @@ class Server:
             except Exception as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
                 break
-        
-        client_sock.close()
         return done
 
     def __accept_new_connection(self):

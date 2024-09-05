@@ -31,6 +31,7 @@ def parse_message(message):
 		agency_id = message.split("|")[1]
 		return ("Done", int(agency_id))
 	elif message[:14] == "RequestWinners":
+		print("got request for winners!!!!")
 		agency_id = message.split("|")[1]
 		return ("RequestWinners", int(agency_id))
 	args = message.split('//')
@@ -53,6 +54,9 @@ def parse_bet(message, agency_id):
 	return Bet(agency_id, args[0], args[1], args[2], args[3], args[4])
 
 def send_message(message, client_sock):
+	"""
+	adds a separator newline and sends over the socket
+	"""
 	sending = "{}\n".format(message).encode('utf-8')
 	bytes_sent = 0
 	while bytes_sent < len(sending):
