@@ -17,6 +17,8 @@ for number in range(1, n+1):
     - testing_net
     depends_on:
     - server
+    volumes:
+      - ${PWD}/client/config.yaml:/config.yaml
 """.format(number, number)
     client_strings.append(client)
 
@@ -30,6 +32,8 @@ services:
     entrypoint: python3 /main.py
     networks:
       - testing_net
+    volumes:
+      - ${PWD}/server/config.ini:/config.ini
 {}
 networks:
   testing_net:
