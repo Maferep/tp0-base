@@ -18,8 +18,8 @@ for number in range(1, n+1):
     depends_on:
     - server
     volumes:
-      - ${PWD}/client/config.yaml:/config.yaml
-""".format(number, number)
+      - ${}/client/config.yaml:/config.yaml
+""".format(number, number, "{PWD}")
     client_strings.append(client)
 
 client_strings = "".join(client_strings)
@@ -33,7 +33,7 @@ services:
     networks:
       - testing_net
     volumes:
-      - ${PWD}/server/config.ini:/config.ini
+      - ${}/server/config.ini:/config.ini
 {}
 networks:
   testing_net:
@@ -41,7 +41,7 @@ networks:
       driver: default
       config:
         - subnet: 172.25.125.0/24
-""".format(client_strings)
+""".format("{PWD}", client_strings)
 
 fp = io.open(name, "w")
 fp.write(full)
