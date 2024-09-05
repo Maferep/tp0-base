@@ -60,13 +60,15 @@ class Server:
 
     def __handle_client_connection(self, client_sock):
         """
-        Reads as many messages as it can until it encounters "done" message or error.
+        Spawn process to handle client connection
         """
         done = False
         client_id = None
         stream = MessageStream(client_sock) # buffers messages from the client socket
         client_id = self.receive_first_message(stream, client_sock) # use first batch to get client id
         self.client_state.handle_connection(client_id, stream, client_sock)
+
+        
 
     def __accept_new_connection(self):
         """

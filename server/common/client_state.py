@@ -16,7 +16,8 @@ class Client:
 
     def receive_done_message(self):
         self.state = "done"
-        self.queue.put((self.id, "Done"))
+        self.queue.put(("Done",self.id))
+        print("received a done message from {}".format(self.id))
 
     def request_results(self):
         '''
@@ -27,8 +28,8 @@ class Client:
         if self.results_ready:
             send_message(self.results_ready, self.socket)
         else:
-            self.queue.put((self.id, "Request"))
-            results_message = self.queue.get()[1]
+            self.queue.put(("Request", self.id))
+            # results_message = self.queue.get(timeout=0.1)[1]
             send_message(results_message, self.socket)
 
     def handle_connection(self):
@@ -45,14 +46,23 @@ class Client:
                 self.state = "error"
                 break
         while self.state == "done":
-            self.receive_message()
+            print("were done")
+            break
+            # self.receive_request_message()
+        # we are in requested state, do nothing for now because of bug
+        while True:
+            pass
+
+    def receive_request_message(self):
+        if description == "RequestWinners":
+            self.state = "requested"
 
 
     def receive_message(self):
+        print("getting message...")
         message = self.stream.get_message()
         description, content = parse_message(message)
         if description == "Done":
-            print("received a done message from {}".format(content))
             _client_id = int(content)
             self.receive_done_message()
         elif description == "RequestWinners":
@@ -79,7 +89,7 @@ class Clients:
         for i in range(1,quantity+1):
             self.client_state[i] = Client(i)
     
-    def do_poll(self):
+    def do_raffle(self):
         bets = load_bets()
         winners = []
         for bet in bets:
@@ -103,6 +113,15 @@ class Clients:
         self.active_processes[client_id] = (child, queue) # this will allow us to communicate w process later
 
 
+        if len(self.active_processes) == 5 :
+            print("waiting for subprocesses")
+            while self.done_counter <= 5:
+                self.pop_message_queues()
+            print("leave loop")
+
+            
+
+
     def announce_winners(self, winners):
         for _id in range(1, 5+1):
             agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == _id]
@@ -110,16 +129,33 @@ class Clients:
             results_message = "Results|{}".format(results) # TODO move to protocol
             print(results_message)
             
-            q = self.active_processes[client_id][1]
+            handle, q = self.active_processes[_id]
             q.put(("Results", results_message))
 
-    def notify_done(self, client):
-        print(f"Got done message from {client.id}")
+    def notify_done(self, id):
+        print(f"Got done message from {id}")
         self.done_counter += 1
         if self.done_counter == len(self.client_state.keys()):
-            winners = self.do_poll()
+            winners = self.do_raffle()
             print("action: sorteo | result: success")
             self.announce_winners(winners)
+
+    def pop_message_queues(self):
+        val = self.active_processes.values()
+        queues = [q for handle, q in val]
+        print("check queues {}, counter {}", len(queues), self.done_counter)
+        for q in queues:
+            try:
+                name, content = q.get(timeout=0.1)
+                print("popped {} {}".format(name, content))
+                if name == "Done":
+                    id = content
+                    self.notify_done(id)
+                else:
+                    pass
+            except queue.Empty:
+                print("empty")
+                pass
 
 
 def client_handle_connection(client : Client, queue: multiprocessing.Queue) -> Client:
