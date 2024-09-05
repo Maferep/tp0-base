@@ -31,7 +31,6 @@ def parse_message(message):
 		agency_id = message.split("|")[1]
 		return ("Done", int(agency_id))
 	elif message[:14] == "RequestWinners":
-		print("got request for winners!!!!")
 		agency_id = message.split("|")[1]
 		return ("RequestWinners", int(agency_id))
 	args = message.split('//')
@@ -39,7 +38,6 @@ def parse_message(message):
 	agency_id = batch_data[0]
 	size = batch_data[1]
 	bets = args[1:]
-	print("size {}".format(size))
 	if not size.isnumeric() or not (len(bets) == int(size)):
 		raise ValueError("Wrong batch size:{}".format(message))
 	parsed_bets = []
@@ -51,6 +49,7 @@ def parse_bet(message, agency_id):
 	args = message.split("|")
 	if len(args) != 5:
 		print(f"Bad message ${args}")
+		return None
 	return Bet(agency_id, args[0], args[1], args[2], args[3], args[4])
 
 def send_message(message, client_sock):

@@ -132,7 +132,7 @@ class Clients:
         self.done_counter += 1
         if self.done_counter == len(self.client_state.keys()):
             winners = self.do_raffle()
-            print("action: sorteo | result: success")
+            logging.info("action: sorteo | result: success")
             
             self.announce_winners(winners)
 

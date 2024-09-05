@@ -38,7 +38,6 @@ class Server:
                 self.__handle_client_connection(client_sock)
             except OSError:
                 break
-        print("Shutting down...")
 
   
     def receive_first_message(self, stream, client_sock) -> int: # TODO handle receive done message with no content
