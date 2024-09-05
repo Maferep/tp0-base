@@ -66,7 +66,6 @@ class Server:
         client_id = None
         stream = MessageStream(client_sock) # buffers messages from the client socket
         client_id = self.receive_first_message(stream, client_sock) # use first batch to get client id
-        # self.client_state.set_socket(client_id, client_sock)
         self.client_state.handle_connection(client_id, stream, client_sock)
 
     def __accept_new_connection(self):
