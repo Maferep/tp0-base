@@ -6,15 +6,28 @@ class Client:
         self.id = id
         self.done = False
         self.wants_results = False
+        self.results_ready = None # used if clients request arrives after poll
         self.socket = None
         # self.requested_results = False
 
     def receive_done_message(self):
         self.done = True
+
     def request_results(self):
+        print(f"Got result request for {self.id}")
         self.wants_results = True
+        if self.results_ready:
+            send_message(self.results_ready, self.socket)
+
     def requested_results(self):
         return self.wants_results
+
+    def notify_results(self, results_message):
+        self.results_ready
+        if self.wants_results:
+            send_message(results_message, self.socket)
+        else:
+            self.results_ready = results_message
 
     # def receive_request_for_results()
 
@@ -34,9 +47,8 @@ class Clients:
             print("action: sorteo | result: success")
             self.announce_winners(winners)
 
-    def request_results(self, id):
-        print(f"Got result request from {id}")
-        self.client_state[id].request_results()
+    def request_results(self, _id):
+        self.client_state[_id].request_results()
     
     def do_poll(self):
         bets = load_bets()
@@ -50,11 +62,9 @@ class Clients:
         self.client_state[int(_id)].socket = sock
 
     def announce_winners(self, winners):
-        for id in range(1, 5+1):
-            agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == id]
-            if self.client_state[id].requested_results(): # this should be true for every successful client
-                # send using socket associated with this id (it should still be open!)
-                results = "|".join(agency_winners_dnis)
-                results_message = "Results|{}".format(results) # TODO move to protocol
-                print(results_message)
-                send_message(results_message, self.client_state[id].socket)
+        for _id in range(1, 5+1):
+            agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == _id]
+            results = "|".join(agency_winners_dnis)
+            results_message = "Results|{}".format(results) # TODO move to protocol
+            print(results_message)
+            self.client_state[_id].notify_results(results_message)
