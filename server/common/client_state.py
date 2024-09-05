@@ -12,7 +12,8 @@ class Client:
         self.state = "batch"
         self.results_ready = None # used sif clients request arrives after poll
         self.socket = None
-        self.queue = None
+        self.queue = None # to notify main process of events
+        self.results_queue = None # to get the result of the raffle
 
     def receive_done_message(self):
         self.state = "done"
@@ -43,8 +44,8 @@ class Client:
             print("were done")
             self.receive_request_message()
         assert(self.state == "requested")
-        # name, results_message = self.queue.get(timeout = 0.1) #BUG
-        send_message("12345", self.socket)
+        name, results_message = self.results_queue.get() # wait for ("Results", results_message)
+        send_message(results_message, self.socket)
 
     def receive_request_message(self):
         print("getting message...")
@@ -100,10 +101,11 @@ class Clients:
         self.client_state[client_id].stream = stream
         
         queue = multiprocessing.Queue()
+        results_queue = multiprocessing.Queue()
         client = self.client_state[client_id]
-        child = multiprocessing.Process(target=client_handle_connection, args=(client, queue,))
+        child = multiprocessing.Process(target=client_handle_connection, args=(client, queue, results_queue,))
         child.start()
-        self.active_processes[client_id] = (child, queue) # this will allow us to communicate w process later
+        self.active_processes[client_id] = (child, queue, results_queue) # this will allow us to communicate w process later
 
 
         if len(self.active_processes) == 5 :
@@ -122,8 +124,8 @@ class Clients:
             results_message = "Results|{}".format(results) # TODO move to protocol
             print(results_message)
             
-            handle, q = self.active_processes[_id]
-            q.put(("Results", results_message))
+            handle, q, rq = self.active_processes[_id]
+            rq.put(("Results", results_message))
 
     def notify_done(self, id):
         print(f"Got done message from {id}")
@@ -135,7 +137,7 @@ class Clients:
 
     def pop_message_queues(self):
         val = self.active_processes.values()
-        queues = [q for handle, q in val]
+        queues = [q for handle, q, rq in val]
         print("check queues {}, counter {}", len(queues), self.done_counter)
         for q in queues:
             try:
@@ -151,8 +153,9 @@ class Clients:
                 pass
 
 
-def client_handle_connection(client : Client, queue: multiprocessing.Queue) -> Client:
+def client_handle_connection(client : Client, queue: multiprocessing.Queue, results_queue: multiprocessing.Queue) -> Client:
     client.queue = queue
+    client.results_queue = results_queue
     client.handle_connection()
     # socket descriptor closed implicitly
     return
