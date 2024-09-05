@@ -13,9 +13,6 @@ for number in range(1, n+1):
     container_name: client{}
     image: client:latest
     entrypoint: /client
-    environment:
-    - CLI_ID=1
-    - CLI_LOG_LEVEL=DEBUG
     networks:
     - testing_net
     depends_on:
@@ -31,9 +28,6 @@ services:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
     networks:
       - testing_net
 {}
