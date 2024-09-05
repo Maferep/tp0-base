@@ -18,10 +18,10 @@ class Client:
     def receive_done_message(self):
         self.state = "done"
         self.queue.put(("Done",self.id))
-        print("received a done message from {}".format(self.id))
+        
 
     def request_results(self):
-        print(f"Got result request for {self.id}")
+        
         self.state = "requested"
         if self.results_ready:
             send_message(self.results_ready, self.socket)
@@ -41,14 +41,14 @@ class Client:
                 self.state = "error"
                 break
         while self.state == "done":
-            print("were done")
+            
             self.receive_request_message()
         assert(self.state == "requested")
         name, results_message = self.results_queue.get() # wait for ("Results", results_message)
         send_message(results_message, self.socket)
 
     def receive_request_message(self):
-        print("getting message...")
+        
         message = self.stream.get_message()
         description, content = parse_message(message)
         if description == "RequestWinners":
@@ -56,7 +56,7 @@ class Client:
 
 
     def receive_message(self):
-        print("getting message...")
+        
         message = self.stream.get_message()
         description, content = parse_message(message)
         if description == "Done":
@@ -109,10 +109,10 @@ class Clients:
 
 
         if len(self.active_processes) == 5 :
-            print("waiting for subprocesses")
+            
             while self.done_counter < 5:
                 self.pop_message_queues()
-            print("leave loop")
+            
 
             
 
@@ -122,34 +122,35 @@ class Clients:
             agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == _id]
             results = "|".join(agency_winners_dnis)
             results_message = "Results|{}".format(results) # TODO move to protocol
-            print(results_message)
+            
             
             handle, q, rq = self.active_processes[_id]
             rq.put(("Results", results_message))
 
     def notify_done(self, id):
-        print(f"Got done message from {id}")
+        
         self.done_counter += 1
         if self.done_counter == len(self.client_state.keys()):
             winners = self.do_raffle()
             print("action: sorteo | result: success")
+            
             self.announce_winners(winners)
 
     def pop_message_queues(self):
         val = self.active_processes.values()
         queues = [q for handle, q, rq in val]
-        print("check queues {}, counter {}", len(queues), self.done_counter)
+        
         for q in queues:
             try:
                 name, content = q.get(timeout=0.1)
-                print("popped {} {}".format(name, content))
+                
                 if name == "Done":
                     id = content
                     self.notify_done(id)
                 else:
                     pass
             except queue.Empty:
-                print("empty")
+                
                 pass
 
 
