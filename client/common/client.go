@@ -247,7 +247,7 @@ func (c *Client) RequestRaffleWinners() error {
 	return c.SendAll(message)
 }
 
-func (c *Client) WaitForRaffleResults() (string, error) {
+func (c *Client) WaitForRaffleResults() (string, error) { //includes delimiter
 	log.Infof("waiting for results....")
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	log.Infof("is this raffle results?")
@@ -256,6 +256,7 @@ func (c *Client) WaitForRaffleResults() (string, error) {
 		if err != nil {
 			return "", err
 		} else if strings.HasPrefix(msg, "Results") {
+			msg = msg[:len(msg)-1] // remove trailing newline
 			return msg, nil
 		}
 		// ignores messages that arent raffle results
@@ -266,7 +267,13 @@ func (c *Client) WaitForRaffleResults() (string, error) {
 func (c *Client) ParseResults(message string) error {
 	args := strings.Split(message, "|")
 	winners := args[1:]
-	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
+	// handle no winners case
+	log.Infof("-%v-%v-", args[0], args[1])
+	if (len(winners) == 1) && (winners[0] == "") {
+		log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", 0)
+	} else {
+		log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
+	}
 	return nil
 }
 
