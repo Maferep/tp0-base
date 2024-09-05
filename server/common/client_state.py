@@ -115,7 +115,7 @@ class Clients:
 
         if len(self.active_processes) == 5 :
             print("waiting for subprocesses")
-            while self.done_counter <= 5:
+            while self.done_counter < 5:
                 self.pop_message_queues()
             print("leave loop")
 
