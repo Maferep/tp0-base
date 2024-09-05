@@ -266,11 +266,7 @@ func (c *Client) WaitForRaffleResults() (string, error) {
 func (c *Client) ParseResults(message string) error {
 	args := strings.Split(message, "|")
 	winners := args[1:]
-	if len(winners) == 0 {
-		log.Infof("NO WINNERS")
-	} else {
-		log.Infof("WINNERS: %v", winners)
-	}
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
 	return nil
 }
 

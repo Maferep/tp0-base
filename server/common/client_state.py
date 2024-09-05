@@ -31,6 +31,7 @@ class Clients:
         self.done_counter += 1
         if self.done_counter == len(self.client_state.keys()):
             winners = self.do_poll()
+            print("action: sorteo | result: success")
             self.announce_winners(winners)
 
     def request_results(self, id):
@@ -51,7 +52,6 @@ class Clients:
     def announce_winners(self, winners):
         for id in range(1, 5+1):
             agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == id]
-            print(f"winners for {id}: {agency_winners_dnis}")
             if self.client_state[id].requested_results(): # this should be true for every successful client
                 # send using socket associated with this id (it should still be open!)
                 results = "|".join(agency_winners_dnis)
