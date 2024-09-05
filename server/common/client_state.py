@@ -2,53 +2,53 @@ from common.utils import load_bets, has_won
 from common.protocol import parse_message, MessageStream, send_message
 from common.utils import store_bets
 import logging
+import multiprocessing
+import queue
+
 class Client:
     def __init__(self, id):
         assert(isinstance(id, int))
         self.id = id
-        self.done = False
-        self.wants_results = False
+        self.state = "batch"
         self.results_ready = None # used sif clients request arrives after poll
         self.socket = None
-        self.observer_of_done = None
-        # self.requested_results = False
-
-    def listen_for_done(self, observer):
-        self.observer_of_done = observer
+        self.queue = None
 
     def receive_done_message(self):
-        self.done = True
-        self.observer_of_done.notify_done(self)
+        self.state = "done"
+        self.queue.put((self.id, "Done"))
 
     def request_results(self):
+        '''
+        block reading from socket until we get results, then send them back to agencys
+        '''
         print(f"Got result request for {self.id}")
-        self.wants_results = True
+        self.state = "requested"
         if self.results_ready:
             send_message(self.results_ready, self.socket)
-
-    def requested_results(self):
-        return self.wants_results
-
-    def notify_results(self, results_message):
-        if self.wants_results:
-            send_message(results_message, self.socket)
         else:
-            self.results_ready = results_message
+            self.queue.put((self.id, "Request"))
+            results_message = self.queue.get()[1]
+            send_message(results_message, self.socket)
 
     def handle_connection(self):
-        done = False
-        while not done:
+        while self.state == "batch":
+            # read from net socket
             try:
-                done =  self.receive_message()
+                self.receive_message()
             except OSError as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
+                self.state = "error"
                 break
             except Exception as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
+                self.state = "error"
                 break
+        while self.state == "done":
+            self.receive_message()
 
-    def receive_message(self) -> bool:
-        done = False
+
+    def receive_message(self):
         message = self.stream.get_message()
         description, content = parse_message(message)
         if description == "Done":
@@ -56,8 +56,8 @@ class Client:
             _client_id = int(content)
             self.receive_done_message()
         elif description == "RequestWinners":
-            self.request_results()
-            done = True
+            self.state = "requested"
+            self.request_results() # blocks until we get results
         else:
             bets = content[0]
             _client_id = content[1]
@@ -69,15 +69,15 @@ class Client:
         
             response = "OK"
             send_message(response, self.socket)
-        return done
+        return
 
 class Clients:
     def __init__(self, quantity):
         self.done_counter = 0
         self.client_state : dict = {}
+        self.active_processes = {}
         for i in range(1,quantity+1):
             self.client_state[i] = Client(i)
-            self.client_state[i].listen_for_done(self)
     
     def do_poll(self):
         bets = load_bets()
@@ -87,13 +87,21 @@ class Clients:
                 winners.append(bet)
         return winners
 
-    def set_socket(self, _id, sock):
-        self.client_state[int(_id)].socket = sock
-
     def handle_connection(self, client_id, stream, sock):
+        '''
+        creates new process for us to communicate with the client
+        and a queue to share a client object
+        process stops once it receives 'done' message or error
+        '''
         self.client_state[client_id].socket = sock
         self.client_state[client_id].stream = stream
-        self.client_state[client_id].handle_connection()
+        
+        queue = multiprocessing.Queue()
+        client = self.client_state[client_id]
+        child = multiprocessing.Process(target=client_handle_connection, args=(client, queue,))
+        child.start()
+        self.active_processes[client_id] = (child, queue) # this will allow us to communicate w process later
+
 
     def announce_winners(self, winners):
         for _id in range(1, 5+1):
@@ -101,7 +109,9 @@ class Clients:
             results = "|".join(agency_winners_dnis)
             results_message = "Results|{}".format(results) # TODO move to protocol
             print(results_message)
-            self.client_state[_id].notify_results(results_message)
+            
+            q = self.active_processes[client_id][1]
+            q.put(("Results", results_message))
 
     def notify_done(self, client):
         print(f"Got done message from {client.id}")
@@ -110,3 +120,10 @@ class Clients:
             winners = self.do_poll()
             print("action: sorteo | result: success")
             self.announce_winners(winners)
+
+
+def client_handle_connection(client : Client, queue: multiprocessing.Queue) -> Client:
+    client.queue = queue
+    client.handle_connection()
+    # socket descriptor closed implicitly
+    return
