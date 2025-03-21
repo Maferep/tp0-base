@@ -15,6 +15,12 @@ for number in range(1, n+1):
     container_name: client{}
     image: client:latest
     entrypoint: /client
+    environment:
+      - NOMBRE=MAFER
+      - APELLIDO=PONT
+      - DOCUMENTO=555555
+      - NACIMIENTO=1999-03-17
+      - NUMERO=7578
     networks:
     - testing_net
     depends_on:

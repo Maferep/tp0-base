@@ -63,18 +63,25 @@ func (c *Client) StartClientLoop() {
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	interrupted := false
+
+	// environment variables
+	nombre := os.Getenv("NOMBRE")
+	apellido := os.Getenv("APELLIDO")
+	documento := os.Getenv("DOCUMENTO")
+	nacimiento := os.Getenv("NACIMIENTO")
+	numero := os.Getenv("NUMERO")
+
 	for msgID := 1; msgID <= c.config.LoopAmount && !interrupted; msgID++ {
 		select {
 		case <-ticker.C:
-			// Create the connection the server in every loop iteration. Send an}
+			// create socket and message
 			err := c.createClientSocket()
 			if err != nil {
 				fmt.Println("Got an error creating the socket")
 				break
 			}
-			// TODO: Modify the send to avoid short-write
-			interactionError := interactWithServer(c, msgID)
-			if interactionError {
+			interactionError := interactWithServer(c, msgID, nombre, apellido, documento, nacimiento, numero)
+			if interactionError != nil {
 				return
 			}
 		case <-terminated:
@@ -92,29 +99,34 @@ func (c *Client) StartClientLoop() {
 // Handle an interaction with the server.
 // Formats and sends a client request, receives a server response,
 // and logs the interaction.
-// Reports whether an error occurred.
-func interactWithServer(c *Client, msgID int) bool {
+// Returns nil on success, or an error otherwise.
+func interactWithServer(
+	c *Client, msgID int, n string, a string, d string, nac string, num string) error {
 
 	fmt.Fprintf(
 		c.conn,
-		"[CLIENT %v] Message N°%v\n",
-		c.config.ID,
-		msgID,
-	)
-	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+		"%v|%v|%v|%v|%v\n",
+		n,
+		a,
+		d,
+		nac,
+		num)
+
+	// Wait for server confirmation
+	_, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
+	// Log interaction result
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
-		return true
+		return err
 	}
-
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-		c.config.ID,
-		msg,
+	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
+		d,
+		num,
 	)
-	return false
+	return nil
 }
