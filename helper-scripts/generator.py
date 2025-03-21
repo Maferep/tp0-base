@@ -1,11 +1,13 @@
 import sys
 import io
+
 try:
     n = int(sys.argv[2])
     name = str(sys.argv[1])
 except:
     print("Bad input")
     exit()
+
 client_strings = []
 for number in range(1, n+1):
     client = """\
@@ -21,7 +23,6 @@ for number in range(1, n+1):
       - ./client/config.yaml:/config.yaml
 """.format(number, number)
     client_strings.append(client)
-
 client_strings = "".join(client_strings)
 
 full = """name: tp0
