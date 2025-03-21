@@ -2,8 +2,12 @@ package common
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/op/go-logging"
@@ -45,6 +49,7 @@ func (c *Client) createClientSocket() error {
 			c.config.ID,
 			err,
 		)
+		return errors.New("could not connect")
 	}
 	c.conn = conn
 	return nil
@@ -52,38 +57,64 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
+	ticker := time.NewTicker(c.config.LoopPeriod)
+	terminated := make(chan os.Signal, 1)
+	signal.Notify(terminated, syscall.SIGTERM)
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
+	interrupted := false
+	for msgID := 1; msgID <= c.config.LoopAmount && !interrupted; msgID++ {
+		select {
+		case <-ticker.C:
+			// Create the connection the server in every loop iteration. Send an}
+			err := c.createClientSocket()
+			if err != nil {
+				fmt.Println("Got an error creating the socket")
+				break
+			}
+			// TODO: Modify the send to avoid short-write
+			interactionError := interactWithServer(c, msgID)
+			if interactionError {
+				return
+			}
+		case <-terminated:
+			fmt.Println("Graceful shutdown!")
+			// Connection is not closed if it hasn't yet been created (createClientSocket)
+			if c.conn != nil {
+				c.conn.Close()
+			}
+			interrupted = true
 		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
 	}
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+}
+
+// Handle an interaction with the server.
+// Formats and sends a client request, receives a server response,
+// and logs the interaction.
+// Reports whether an error occurred.
+func interactWithServer(c *Client, msgID int) bool {
+
+	fmt.Fprintf(
+		c.conn,
+		"[CLIENT %v] Message N°%v\n",
+		c.config.ID,
+		msgID,
+	)
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	c.conn.Close()
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
+		return true
+	}
+
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+		c.config.ID,
+		msg,
+	)
+	return false
 }
