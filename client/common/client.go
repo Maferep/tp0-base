@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 )
 
 var log = logging.MustGetLogger("log")
+var max = 8 * 1024
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
@@ -21,6 +24,7 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	MaxAmount     int
 }
 
 // Client Entity that encapsulates how
@@ -56,77 +60,123 @@ func (c *Client) createClientSocket() error {
 }
 
 // StartClientLoop Send messages to the client until some time threshold is met
-func (c *Client) StartClientLoop() {
+func (c *Client) StartClientLoop() error {
 	ticker := time.NewTicker(c.config.LoopPeriod)
 	terminated := make(chan os.Signal, 1)
 	signal.Notify(terminated, syscall.SIGTERM)
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
+
+	// Open file
+	client_id := os.Getenv("CLI_ID")
+	client_id_value, err := strconv.Atoi(client_id)
+	if err != nil {
+		client_id_value = 1
+	}
+	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
+	file, err := os.Open(name)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	// read the file line by line
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	rows := new([][]string)
+
 	interrupted := false
+	for scanner.Scan() {
+		// parse csv line
+		bet_text := scanner.Text()
+		row := strings.Split(bet_text, ",")
+		if len(row) != 5 {
+			panic(row)
+		}
 
-	// environment variables
-	nombre := os.Getenv("NOMBRE")
-	apellido := os.Getenv("APELLIDO")
-	documento := os.Getenv("DOCUMENTO")
-	nacimiento := os.Getenv("NACIMIENTO")
-	numero := os.Getenv("NUMERO")
+		// build batch collection from batch.maxAmount parameter
+		*rows = append(*rows, row)
 
-	for msgID := 1; msgID <= c.config.LoopAmount && !interrupted; msgID++ {
-		select {
-		case <-ticker.C:
+		if len(*rows) == c.config.MaxAmount {
 			// create socket and message
-			err := c.createClientSocket()
+			err := CreateSocketAndSendMessage(c, rows)
 			if err != nil {
-				fmt.Println("Got an error creating the socket")
+				return err
+			}
+
+			*rows = nil
+
+			select { // waits for either an interrupt signal or a set time
+			case <-ticker.C:
+				continue
+			case <-terminated:
+				fmt.Println("Graceful shutdown!")
+				// Connection is not closed if it hasn't yet been created (createClientSocket)
+				if c.conn != nil {
+					c.conn.Close()
+				}
+				interrupted = true
+			}
+			if interrupted {
 				break
 			}
-			interactionError := interactWithServer(c, msgID, nombre, apellido, documento, nacimiento, numero)
-			if interactionError != nil {
-				return
-			}
-		case <-terminated:
-			fmt.Println("Graceful shutdown!")
-			// Connection is not closed if it hasn't yet been created (createClientSocket)
-			if c.conn != nil {
-				c.conn.Close()
-			}
-			interrupted = true
 		}
 	}
+
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	return nil
 }
 
-// Handle an interaction with the server.
-// Formats and sends a client request, receives a server response,
-// and logs the interaction.
-// Returns nil on success, or an error otherwise.
-func interactWithServer(
-	c *Client, msgID int, n string, a string, d string, nac string, num string) error {
+/*
+Returns a boolean indicating whether a signal interruption occured, and an error value if an error occured
+*/
+func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
+	// build batch message
+	batch := ""
+	batch += strconv.Itoa(len(*data))
+	for _, row := range *data {
+		nombre := row[0]
+		apellido := row[1]
+		documento := row[2]
+		nacimiento := row[3]
+		numero := row[4]
+		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
+		batch += line
+	}
+	batch += "\n"
 
-	fmt.Fprintf(
-		c.conn,
-		"%v|%v|%v|%v|%v\n",
-		n,
-		a,
-		d,
-		nac,
-		num)
+	// create socket
+	err := c.createClientSocket()
+	if err != nil {
+		fmt.Println("Got an error creating the socket")
+		return err
+	}
 
-	// Wait for server confirmation
-	_, err := bufio.NewReader(c.conn).ReadString('\n')
+	// TODO Fix short write
+	_, err = c.conn.Write([]byte(batch))
+	if err != nil {
+		return err
+	}
+
+	// receive server message
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
-	// Log interaction result
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
 		return err
+	} else if msg != "OK\n" {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Incorrect Server Response %v",
+			c.config.ID, msg)
+	} else {
+		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+			c.config.ID,
+			msg,
+		)
 	}
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v",
-		d,
-		num,
-	)
+
 	return nil
 }

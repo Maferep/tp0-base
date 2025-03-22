@@ -1,7 +1,7 @@
 import socket
 import logging
 import signal
-from common.protocol import parse_bet, MessageStream
+from common.protocol import parse_message, MessageStream
 from common.utils import store_bets
 
 class Server:
@@ -25,7 +25,8 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # Graceful shutdown on SIGTERM
+        # TODO: Modify this program to handle signal to graceful shutdown
+        # the server
         signal.signal(signal.SIGTERM, self._exit_gracefully)
         while not self._exit_signal:
             try:
@@ -38,7 +39,6 @@ class Server:
     def send_message(self, message, client_sock):
         sending = "{}\n".format(message).encode('utf-8')
         bytes_sent = 0
-        # Loop to avoid short-writes
         while bytes_sent < len(sending):
             bytes_sent += client_sock.send(sending[bytes_sent:])
         return bytes_sent
@@ -52,15 +52,17 @@ class Server:
         """
         try:
             message = MessageStream(client_sock).get_message()
-            bet = parse_bet(message)
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+            bets = parse_message(message)
+            store_bets(bets)
+            logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
 
             addr = client_sock.getpeername()
-            # logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message}')
-            bytes_sent = self.send_message(message, client_sock)
+            response = "OK"
+            bytes_sent = self.send_message(response, client_sock)
 
         except OSError as e:
+            logging.error("action: receive_message | result: fail | error: {e}")
+        except Exception as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
             client_sock.close()
