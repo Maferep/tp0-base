@@ -15,17 +15,12 @@ for number in range(1, n+1):
     container_name: client{}
     image: client:latest
     entrypoint: /client
-    environment:
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=555555
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7578
     networks:
     - testing_net
     depends_on:
     - server
     volumes:
+      - dataset:/var/lib/client/data
       - ./client/config.yaml:/config.yaml
 """.format(number, number)
     client_strings.append(client)
@@ -48,6 +43,13 @@ networks:
       driver: default
       config:
         - subnet: 172.25.125.0/24
+volumes:
+  dataset:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind 
+      device: ./.data
 """.format(client_strings)
 
 fp = io.open(name, "w")

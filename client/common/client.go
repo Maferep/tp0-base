@@ -73,7 +73,7 @@ func (c *Client) StartClientLoop() error {
 	if err != nil {
 		client_id_value = 1
 	}
-	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
+	name := fmt.Sprintf("/var/lib/client/data/agency-%v.csv", client_id_value)
 	file, err := os.Open(name)
 	if err != nil {
 		panic(err)
@@ -122,6 +122,14 @@ func (c *Client) StartClientLoop() error {
 			}
 		}
 	}
+	if len(*rows) > 0 {
+		// create socket and message
+		err := CreateSocketAndSendMessage(c, rows)
+		if err != nil {
+			return err
+		}
+	}
+	// handle leftovers
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
@@ -157,6 +165,7 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	if err != nil {
 		return err
 	}
+	fmt.Printf("action: apuesta_enviada | result: success")
 
 	// receive server message
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
