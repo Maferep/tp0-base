@@ -16,7 +16,6 @@ import (
 )
 
 var log = logging.MustGetLogger("log")
-var max = 8 * 1024
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
@@ -61,115 +60,135 @@ func (c *Client) createClientSocket() error {
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() error {
-	ticker := time.NewTicker(c.config.LoopPeriod)
-	terminated := make(chan os.Signal, 1)
-	signal.Notify(terminated, syscall.SIGTERM)
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
-
-	// Open file
 	client_id := os.Getenv("CLI_ID")
 	client_id_value, err := strconv.Atoi(client_id)
 	if err != nil {
-		client_id_value = 1
+		log.Criticalf(
+			"action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 	}
-	name := fmt.Sprintf("/var/lib/client/data/agency-%v.csv", client_id_value)
+	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
 	file, err := os.Open(name)
 	if err != nil {
-		panic(err)
+		log.Criticalf(
+			"action: connect | result: fail | client_id: %v | error: %v",
+			c.config.ID,
+			err,
+		)
 	}
+	// remember to close the file at the end of the program
 	defer file.Close()
+
+	// set up orderly interrupt function
+	timer := make(chan string, 1)
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGTERM)
+	signaled := false
+	go func() {
+		<-signals
+		fmt.Println("we got a signal!")
+		signaled = true
+		timer <- "Got a signal!"
+	}()
+
+	// Create socket
+	err = c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: create_client_socket | result: fail | client_id: %v | error: Bad Socket %v",
+			c.config.ID,
+			err,
+		)
+		return err
+	}
+	defer c.conn.Close()
 
 	// read the file line by line
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 	rows := new([][]string)
-
-	interrupted := false
 	for scanner.Scan() {
 		// parse csv line
 		bet_text := scanner.Text()
-		row := strings.Split(bet_text, ",")
-		if len(row) != 5 {
-			panic(row)
+		datapoints := strings.Split(bet_text, ",")
+		if len(datapoints) != 5 {
+			panic(datapoints)
 		}
 
 		// build batch collection from batch.maxAmount parameter
-		*rows = append(*rows, row)
+		*rows = append(*rows, datapoints)
 
-		if len(*rows) == c.config.MaxAmount {
+		if (len(*rows) == c.config.MaxAmount) || (ByteLength(rows) > 8*1024) {
 			// create socket and message
-			err := CreateSocketAndSendMessage(c, rows)
-			if err != nil {
+			_err := SendMessage(c, rows)
+			if _err != nil {
 				return err
 			}
-
-			*rows = nil
-
-			select { // waits for either an interrupt signal or a set time
-			case <-ticker.C:
-				continue
-			case <-terminated:
-				fmt.Println("Graceful shutdown!")
-				// Connection is not closed if it hasn't yet been created (createClientSocket)
-				if c.conn != nil {
-					c.conn.Close()
-				}
-				interrupted = true
-			}
-			if interrupted {
-				break
+			if ByteLength(rows) > 8*1024 { // handle case where packet exceeds 8kb, letting the last row of data be sent in the next batch
+				last_packet := (*rows)[len(*rows)-1]
+				*rows = nil // TODO reallocates memory - might be suboptimal
+				*rows = append(*rows, last_packet)
+			} else {
+				*rows = nil
 			}
 		}
-	}
-	if len(*rows) > 0 {
-		// create socket and message
-		err := CreateSocketAndSendMessage(c, rows)
-		if err != nil {
-			return err
+		if signaled {
+			break
 		}
 	}
-	// handle leftovers
 
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+	// finish off last batch of data (does not handle MaxSize scenario)
+	_err := SendMessage(c, rows)
+	if _err != nil {
+		return err
+	}
+	c.ConfirmEndOfLoop()
+	// immediately after finishing send, request contest results
+	err = c.RequestRaffleWinners()
+	if err != nil {
+		return err
+	}
+	message, err := c.WaitForRaffleResults()
+	if err != nil {
+		return err
+	}
+	c.ParseResults(message)
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
+}
+
+// an upper bound on the byte length of the batch packet produced from this data. depends on the protocol
+func ByteLength(rows *[][]string) int {
+	total_bytes := 0
+	// size of rows
+	total_bytes += len(strconv.Itoa(len(*rows)))
+	for _, row := range *rows {
+		total_bytes += 6 // determined by the protocol and separators
+		for _, datapoint := range row {
+			total_bytes += len(datapoint)
+		}
+	}
+	//terminating newline
+	total_bytes += 1
+	return total_bytes
 }
 
 /*
 Returns a boolean indicating whether a signal interruption occured, and an error value if an error occured
 */
-func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
+func SendMessage(c *Client, data *[][]string) error {
 	// build batch message
-	batch := ""
-	batch += strconv.Itoa(len(*data))
-	for _, row := range *data {
-		nombre := row[0]
-		apellido := row[1]
-		documento := row[2]
-		nacimiento := row[3]
-		numero := row[4]
-		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
-		batch += line
-	}
-	batch += "\n"
+	batch := batchBuilder(c, data)
+	c.SendAll(batch)
 
-	// create socket
-	err := c.createClientSocket()
-	if err != nil {
-		fmt.Println("Got an error creating the socket")
-		return err
-	}
-
-	// TODO Fix short write
-	_, err = c.conn.Write([]byte(batch))
-	if err != nil {
-		return err
-	}
-	fmt.Printf("action: apuesta_enviada | result: success")
-
-	// receive server message
+	// receive server message TODO short read
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
 
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
@@ -187,5 +206,78 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 		)
 	}
 
+	return nil
+}
+
+func batchBuilder(c *Client, data *[][]string) string {
+	batch := ""
+	agencia := c.config.ID
+	batch += agencia
+	batch += "|"
+	batch += strconv.Itoa(len(*data))
+	for _, datapoints := range *data {
+		nombre := datapoints[0]
+		apellido := datapoints[1]
+		documento := datapoints[2]
+		nacimiento := datapoints[3]
+		numero := datapoints[4]
+		line := fmt.Sprintf("//%v|%v|%v|%v|%v", nombre, apellido, documento, nacimiento, numero)
+		batch += line
+	}
+	batch += "\n"
+	return batch
+}
+
+func (c *Client) ConfirmEndOfLoop() error {
+	batch := fmt.Sprintf("Done|%v\n", c.config.ID)
+	// write without short writes
+	return c.SendAll(batch)
+}
+
+func (c *Client) RequestRaffleWinners() error {
+	log.Infof("request winners")
+	message := fmt.Sprintf("RequestWinners|%v\n", c.config.ID)
+	return c.SendAll(message)
+}
+
+func (c *Client) WaitForRaffleResults() (string, error) { //includes delimiter
+	msg, err := bufio.NewReader(c.conn).ReadString('\n')
+	log.Infof(msg)
+	for {
+		if err != nil {
+			return "", err
+		} else if strings.HasPrefix(msg, "Results|") {
+			msg = msg[:len(msg)-1] // remove trailing newline
+			return msg, nil
+		}
+		// ignores messages that arent raffle results
+		msg, err = bufio.NewReader(c.conn).ReadString('\n')
+	}
+}
+
+func (c *Client) ParseResults(message string) error {
+	splitFn := func(c rune) bool {
+		return c == '|'
+	}
+	// note: FieldsFunc drops empty fields
+	args := strings.FieldsFunc(message, splitFn)
+	winners := args[1:]
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
+	return nil
+}
+
+func (c *Client) SendAll(batch string) error {
+	written := 0
+	for written < len(batch) {
+		_written, err := c.conn.Write([]byte(batch[written:]))
+		written += _written
+		if err != nil {
+			log.Errorf("ERROR WRITING DONE WRITING | client_id: %v | error: %v",
+				c.config.ID,
+				err,
+			)
+			return err
+		}
+	}
 	return nil
 }

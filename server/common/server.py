@@ -1,8 +1,9 @@
 import socket
 import logging
 import signal
-from common.protocol import parse_message, MessageStream
+from common.protocol import parse_message, MessageStream, send_message
 from common.utils import store_bets
+from common.client_state import Clients
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -11,6 +12,9 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._exit_signal = False
+
+        # business logic
+        self.client_state = Clients(5)
 
     def _exit_gracefully(self, signum, frame):
         self._exit_signal = True
@@ -36,36 +40,34 @@ class Server:
                 break
         print("Shutting down...")
 
-    def send_message(self, message, client_sock):
-        sending = "{}\n".format(message).encode('utf-8')
-        bytes_sent = 0
-        while bytes_sent < len(sending):
-            bytes_sent += client_sock.send(sending[bytes_sent:])
-        return bytes_sent
+  
+    def receive_first_message(self, stream, client_sock) -> int: # TODO handle receive done message with no content
+        message = stream.get_message()
+        description, content = parse_message(message)
+        client_id = None
+    
+        bets = content[0]
+        client_id = content[1]
+        store_bets(bets)
+        logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
+    
+        addr = client_sock.getpeername()
+        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message[0:5]}')
+    
+        response = "OK"
+        send_message(response, client_sock)
+        return int(client_id)  
 
     def __handle_client_connection(self, client_sock):
         """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
+        Reads as many messages as it can until it encounters "done" message or error.
         """
-        try:
-            message = MessageStream(client_sock).get_message()
-            bets = parse_message(message)
-            store_bets(bets)
-            logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
-
-            addr = client_sock.getpeername()
-            response = "OK"
-            bytes_sent = self.send_message(response, client_sock)
-
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        except Exception as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
+        done = False
+        client_id = None
+        stream = MessageStream(client_sock) # buffers messages from the client socket
+        client_id = self.receive_first_message(stream, client_sock) # use first batch to get client id
+        print(f"open connection with id ${client_id}")
+        self.client_state.handle_connection(client_id, stream, client_sock)
 
     def __accept_new_connection(self):
         """
