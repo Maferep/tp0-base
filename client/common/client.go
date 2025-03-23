@@ -16,7 +16,6 @@ import (
 )
 
 var log = logging.MustGetLogger("log")
-var max = 8 * 1024
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
@@ -129,9 +128,6 @@ func (c *Client) StartClientLoop() error {
 			return err
 		}
 	}
-	// handle leftovers
-
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 	return nil
 }
 
@@ -180,11 +176,6 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	} else if msg != "OK\n" {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Incorrect Server Response %v",
 			c.config.ID, msg)
-	} else {
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
 	}
 
 	return nil
