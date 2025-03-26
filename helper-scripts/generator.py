@@ -15,6 +15,9 @@ for number in range(1, n+1):
     container_name: client{}
     image: client:latest
     entrypoint: /client
+    environment:
+    - CLI_ID={}
+    - CLI_LOG_LEVEL=DEBUG
     networks:
     - testing_net
     depends_on:
@@ -22,7 +25,7 @@ for number in range(1, n+1):
     volumes:
       - dataset:/var/lib/client/data
       - ./client/config.yaml:/config.yaml
-""".format(number, number)
+""".format(number, number, number)
     client_strings.append(client)
 client_strings = "".join(client_strings)
 
