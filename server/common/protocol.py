@@ -38,7 +38,6 @@ def parse_message(message):
 	agency_id = batch_data[0]
 	size = batch_data[1]
 	bets = args[1:]
-	print("size {}".format(size))
 	if not size.isnumeric() or not (len(bets) == int(size)):
 		raise ValueError("Wrong batch size:{}".format(message))
 	parsed_bets = []
