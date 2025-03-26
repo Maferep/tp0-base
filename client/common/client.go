@@ -71,7 +71,7 @@ func (c *Client) StartClientLoop() error {
 			err,
 		)
 	}
-	name := fmt.Sprintf("/var/lib/client/data/dataset/agency-%v.csv", client_id_value)
+	name := fmt.Sprintf("/var/lib/client/data/agency-%v.csv", client_id_value)
 	file, err := os.Open(name)
 	if err != nil {
 		log.Criticalf(
@@ -199,11 +199,6 @@ func SendMessage(c *Client, data *[][]string) error {
 	} else if msg != "OK\n" {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: Incorrect Server Response %v",
 			c.config.ID, msg)
-	} else {
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
 	}
 
 	return nil

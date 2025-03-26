@@ -52,6 +52,7 @@ class Client:
             except Exception as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
                 break
+        assert self.wants_results, "could not receive raffle request"
 
     def receive_message(self) -> bool:
         message = self.stream.get_message()
