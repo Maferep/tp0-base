@@ -4,103 +4,81 @@ services:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
-    environment:
-      - PYTHONUNBUFFERED=1
-      - LOGGING_LEVEL=DEBUG
     networks:
       - testing_net
-
+    volumes:
+      - ./server/config.ini:/config.ini
   client1:
     container_name: client1
     volumes:
       - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=1
-      - CLI_LOG_LEVEL=DEBUG
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=111111
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7574
+    - CLI_ID=1
+    - CLI_LOG_LEVEL=DEBUG
     networks:
-      - testing_net
+    - testing_net
     depends_on:
-      - server
-
+    - server
   client2:
     container_name: client2
     volumes:
       - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=2
-      - CLI_LOG_LEVEL=DEBUG
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=222222
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7575
+    - CLI_ID=2
+    - CLI_LOG_LEVEL=DEBUG
     networks:
-      - testing_net
+    - testing_net
     depends_on:
-      - server
+    - server
   client3:
     container_name: client3
     volumes:
       - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=3
-      - CLI_LOG_LEVEL=DEBUG
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=333333
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7576
+    - CLI_ID=3
+    - CLI_LOG_LEVEL=DEBUG
     networks:
-      - testing_net
+    - testing_net
     depends_on:
-      - server
+    - server
   client4:
     container_name: client4
     volumes:
       - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=4
-      - CLI_LOG_LEVEL=DEBUG
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=444444
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7577
+    - CLI_ID=4
+    - CLI_LOG_LEVEL=DEBUG
     networks:
-      - testing_net
+    - testing_net
     depends_on:
-      - server
+    - server
   client5:
     container_name: client5
     volumes:
       - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
     image: client:latest
     entrypoint: /client
     environment:
-      - CLI_ID=5
-      - CLI_LOG_LEVEL=DEBUG
-      - NOMBRE=MAFER
-      - APELLIDO=PONT
-      - DOCUMENTO=555555
-      - NACIMIENTO=1999-03-17
-      - NUMERO=7578
+    - CLI_ID=5
+    - CLI_LOG_LEVEL=DEBUG
     networks:
-      - testing_net
+    - testing_net
     depends_on:
-      - server
+    - server
+
 networks:
   testing_net:
     ipam:
