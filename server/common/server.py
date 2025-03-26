@@ -1,6 +1,7 @@
 import socket
 import logging
 import signal
+import os
 from common.protocol import parse_message, MessageStream, send_message
 from common.utils import store_bets
 from common.client_state import Clients
@@ -11,10 +12,12 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+
         self._exit_signal = False
 
-        # business logic
-        self.client_state = Clients(5)
+        self.AMOUNT_CLIENTS = int(os.getenv("TOTAL_CLIENTS"))
+        assert self.AMOUNT_CLIENTS
+        self.client_state = Clients(self.AMOUNT_CLIENTS)
 
     def _exit_gracefully(self, signum, frame):
         self._exit_signal = True

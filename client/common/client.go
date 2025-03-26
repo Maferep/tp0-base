@@ -121,19 +121,13 @@ func (c *Client) StartClientLoop() error {
 		// build batch collection from batch.maxAmount parameter
 		*rows = append(*rows, datapoints)
 
-		if (len(*rows) == c.config.MaxAmount) || (ByteLength(rows) > 8*1024) {
+		if len(*rows) == c.config.MaxAmount {
 			// create socket and message
 			_err := SendMessage(c, rows)
 			if _err != nil {
 				return err
 			}
-			if ByteLength(rows) > 8*1024 { // handle case where packet exceeds 8kb, letting the last row of data be sent in the next batch
-				last_packet := (*rows)[len(*rows)-1]
-				*rows = nil // TODO reallocates memory - might be suboptimal
-				*rows = append(*rows, last_packet)
-			} else {
-				*rows = nil
-			}
+			*rows = nil
 		}
 		if signaled {
 			break

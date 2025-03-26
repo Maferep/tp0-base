@@ -35,6 +35,8 @@ services:
     container_name: server
     image: server:latest
     entrypoint: python3 /main.py
+    environment:
+    - TOTAL_CLIENTS={}
     networks:
       - testing_net
     volumes:
@@ -53,7 +55,7 @@ volumes:
       type: none
       o: bind 
       device: ./.data
-""".format(client_strings)
+""".format(n, client_strings)
 
 fp = io.open(name, "w")
 fp.write(full)

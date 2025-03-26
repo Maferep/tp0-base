@@ -52,7 +52,6 @@ class Client:
             except Exception as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
                 break
-        assert self.wants_results, "could not receive raffle request"
 
     def receive_message(self) -> bool:
         message = self.stream.get_message()
@@ -70,7 +69,6 @@ class Client:
             logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
         
             addr = self.socket.getpeername()
-            logging.info(f'msg: {message[0:20]}')
         
             response = "OK"
             send_message(response, self.socket)
@@ -82,6 +80,9 @@ class Clients:
         for i in range(1,quantity+1):
             self.client_state[i] = Client(i)
             self.client_state[i].listen_for_done(self)
+
+    def amount(self):
+        return len(self.client_state)
     
     def do_poll(self):
         bets = load_bets()
@@ -101,8 +102,7 @@ class Clients:
         self.client_state[client_id].receive_raffle_request()
 
     def announce_winners(self, winners):
-        # notify winners
-        for _id in range(1, 5+1):
+        for _id in range(1, self.amount()+1):
             agency_winners_dnis = [(bet.document) for bet in winners if bet.agency == _id]
             results = "|".join(agency_winners_dnis)
             results_message = "Results|{}".format(results) # TODO move to protocol
@@ -110,7 +110,7 @@ class Clients:
 
     def notify_done(self, client):
         self.done_counter += 1
-        if self.done_counter == 5:
+        if self.done_counter == self.amount():
             winners = self.do_poll()
-            print("action: sorteo | result: success")
+            logging.info("action: sorteo | result: success")
             self.announce_winners(winners)
