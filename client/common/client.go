@@ -230,14 +230,12 @@ func (c *Client) ConfirmEndOfLoop() error {
 }
 
 func (c *Client) RequestRaffleWinners() error {
-	log.Infof("request winners")
 	message := fmt.Sprintf("RequestWinners|%v\n", c.config.ID)
 	return c.SendAll(message)
 }
 
 func (c *Client) WaitForRaffleResults() (string, error) { //includes delimiter
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
-	log.Infof(msg)
 	for {
 		if err != nil {
 			return "", err

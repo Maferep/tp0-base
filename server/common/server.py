@@ -52,8 +52,6 @@ class Server:
         logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
     
         addr = client_sock.getpeername()
-        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {message[0:5]}')
-    
         response = "OK"
         send_message(response, client_sock)
         return int(client_id)  
