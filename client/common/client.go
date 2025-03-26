@@ -129,6 +129,7 @@ func (c *Client) StartClientLoop() error {
 			}
 			*rows = nil
 		}
+		time.Sleep(c.config.LoopPeriod)
 		if signaled {
 			break
 		}

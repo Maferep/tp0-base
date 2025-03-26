@@ -5,7 +5,7 @@ services:
     image: server:latest
     entrypoint: python3 /main.py
     environment:
-      - TOTAL_CLIENTS=3
+    - TOTAL_CLIENTS=5
     networks:
       - testing_net
     volumes:
@@ -47,6 +47,34 @@ services:
     entrypoint: /client
     environment:
     - CLI_ID=3
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+  client4:
+    container_name: client4
+    volumes:
+      - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=4
+    - CLI_LOG_LEVEL=DEBUG
+    networks:
+    - testing_net
+    depends_on:
+    - server
+  client5:
+    container_name: client5
+    volumes:
+      - dataset:/var/lib/client/data
+      - ./client/config.yaml:/config.yaml
+    image: client:latest
+    entrypoint: /client
+    environment:
+    - CLI_ID=5
     - CLI_LOG_LEVEL=DEBUG
     networks:
     - testing_net
