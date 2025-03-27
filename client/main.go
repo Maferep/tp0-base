@@ -107,6 +107,7 @@ func main() {
 		ServerAddress: v.GetString("server.address"),
 		ID:            v.GetString("id"),
 		LoopAmount:    v.GetInt("loop.amount"),
+		MaxAmount:     v.GetInt("batch.maxAmount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
