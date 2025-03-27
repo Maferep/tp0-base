@@ -83,18 +83,6 @@ func (c *Client) StartClientLoop() error {
 	// remember to close the file at the end of the program
 	defer file.Close()
 
-	// set up orderly interrupt function
-	timer := make(chan string, 1)
-	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGTERM)
-	signaled := false
-	go func() {
-		<-signals
-		fmt.Println("we got a signal!")
-		signaled = true
-		timer <- "Got a signal!"
-	}()
-
 	// Create socket
 	err = c.createClientSocket()
 	if err != nil {
@@ -106,10 +94,17 @@ func (c *Client) StartClientLoop() error {
 	}
 	defer c.conn.Close()
 
+	// set up ticker
+	ticker := time.NewTicker(c.config.LoopPeriod)
+	terminated := make(chan os.Signal, 1)
+	signal.Notify(terminated, syscall.SIGTERM)
+
 	// read the file line by line
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 	rows := new([][]string)
+
+	interrupted := false
 	for scanner.Scan() {
 		// parse csv line
 		bet_text := scanner.Text()
@@ -121,18 +116,29 @@ func (c *Client) StartClientLoop() error {
 		// build batch collection from batch.maxAmount parameter
 		*rows = append(*rows, datapoints)
 
-		if len(*rows) == c.config.MaxAmount {
-			// create socket and message
-			_err := SendMessage(c, rows)
-			if _err != nil {
-				return err
+		select {
+		case <-ticker.C:
+			if len(*rows) == c.config.MaxAmount {
+				// create socket and message
+				_err := SendMessage(c, rows)
+				if _err != nil {
+					return err
+				}
+				*rows = nil
 			}
-			*rows = nil
+
+		case <-terminated:
+			fmt.Println("Graceful shutdown!")
+			// Connection is not closed if it hasn't yet been created (createClientSocket)
+			if c.conn != nil {
+				c.conn.Close()
+			}
+			interrupted = true
 		}
-		time.Sleep(c.config.LoopPeriod)
-		if signaled {
+		if interrupted {
 			break
 		}
+
 	}
 
 	if err := scanner.Err(); err != nil {
