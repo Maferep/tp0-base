@@ -1,4 +1,5 @@
 from common.utils import Bet, store_bets
+PROTOCOL_ROW_COLUMNS=5
 class MessageStream:
 	def __init__(self, socket):
 		self.buffer =  b''
@@ -20,6 +21,6 @@ class MessageStream:
 
 def parse_bet(message):
 	args = message.split("|")
-	if len(args) != 5:
+	if len(args) != PROTOCOL_ROW_COLUMNS:
 		print(f"Bad message ${args}")
 	return Bet(123, args[0], args[1], args[2], args[3], args[4])
