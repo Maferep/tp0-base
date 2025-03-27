@@ -12,6 +12,12 @@ services:
     container_name: client1
     image: client:latest
     entrypoint: /client
+    environment:
+      - NOMBRE=MAFER
+      - APELLIDO=PONT
+      - DOCUMENTO=555555
+      - NACIMIENTO=1999-03-17
+      - NUMERO=7578
     networks:
     - testing_net
     depends_on:
