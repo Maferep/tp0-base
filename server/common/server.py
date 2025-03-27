@@ -4,8 +4,7 @@ import logging
 import signal
 import os
 from common.protocol import parse_message, MessageStream, send_message
-from common.utils import store_bets
-from common.client_state import Clients
+from common.clients import Clients
 from common.thread_safe_bets import safe_store_bets
 
 class Server:
