@@ -1,6 +1,6 @@
 from common.utils import load_bets, has_won
 from common.protocol import parse_message, MessageStream, send_message
-from common.thread_safe_bets import safe_store_bets
+from common.thread_safe_bets import safe_store_bets, safe_load_bets
 import logging
 import multiprocessing
 import queue
@@ -102,8 +102,8 @@ class Clients:
     def amount(self):
         return len(self.client_state)
     
-    def do_raffle(self):
-        bets = load_bets()
+    def do_raffle(self, lock):
+        bets = safe_load_bets(lock)
         winners = []
         for bet in bets:
             if has_won(bet):
@@ -129,7 +129,7 @@ class Clients:
 
         if len(self.active_processes) == self.amount():
             while self.done_counter < self.amount():
-                self.pop_message_queues()
+                self.pop_message_queues(file_lock)
             
 
             
@@ -145,15 +145,15 @@ class Clients:
             handle, q, rq = self.active_processes[_id]
             rq.put(("Results", results_message))
 
-    def notify_done(self, id):
+    def notify_done(self, id, lock):
         
         self.done_counter += 1
         if self.done_counter == self.amount():
-            winners = self.do_raffle()
+            winners = self.do_raffle(lock)
             logging.info("action: sorteo | result: success")
             self.announce_winners(winners)
 
-    def pop_message_queues(self):
+    def pop_message_queues(self, lock):
         val = self.active_processes.values()
         queues = [q for handle, q, rq in val]
         
@@ -163,7 +163,7 @@ class Clients:
                 
                 if name == "Done":
                     id = content
-                    self.notify_done(id)
+                    self.notify_done(id, lock)
                 else:
                     pass
             except queue.Empty:
