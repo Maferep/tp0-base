@@ -161,7 +161,7 @@ func CreateSocketAndSendMessage(c *Client, data *[][]string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("action: apuesta_enviada | result: success")
+	log.Infof("action: apuesta_enviada | result: success")
 
 	// receive server message
 	msg, err := bufio.NewReader(c.conn).ReadString('\n')
