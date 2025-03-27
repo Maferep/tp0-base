@@ -85,6 +85,7 @@ func (c *Client) StartClientLoop() error {
 	rows := new([][]string)
 
 	interrupted := false
+	time.Sleep(c.config.LoopPeriod)
 	for scanner.Scan() {
 		// parse csv line
 		bet_text := scanner.Text()
