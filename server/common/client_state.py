@@ -1,6 +1,6 @@
 from common.utils import load_bets, has_won
 from common.protocol import parse_message, MessageStream, send_message
-from common.utils import store_bets
+from common.thread_safe_bets import safe_store_bets
 import logging
 import multiprocessing
 import queue
@@ -44,11 +44,11 @@ class Client:
         else: # store result for later sending
             self.results_message = results_message
 
-    def receive_bets(self):
+    def receive_bets(self, lock):
         while self.state == "batch":
             # read from net socket
             try:
-                self.receive_message()
+                self.receive_message(lock)
             except OSError as e:
                 logging.error(f"action: receive_message | result: fail | error: {e}")
                 self.state = "error"
@@ -71,7 +71,7 @@ class Client:
             self.request_results()
 
 
-    def receive_message(self):
+    def receive_message(self, lock):
         message = self.stream.get_message()
         description, content = parse_message(message)
         if description == "Done":
@@ -80,7 +80,7 @@ class Client:
         else:
             bets = content[0]
             _client_id = content[1]
-            store_bets(bets)
+            safe_store_bets(bets, lock)
             logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
         
             addr = self.socket.getpeername()
@@ -110,7 +110,7 @@ class Clients:
                 winners.append(bet)
         return winners
 
-    def handle_connection(self, client_id, stream, sock):
+    def handle_connection(self, client_id, stream, sock, file_lock):
         '''
         creates new process for us to communicate with the client
         and a queue to share a client object
@@ -122,7 +122,7 @@ class Clients:
         queue = multiprocessing.Queue()
         results_queue = multiprocessing.Queue()
         client = self.client_state[client_id]
-        child = multiprocessing.Process(target=client_handle_connection, args=(client, queue, results_queue,))
+        child = multiprocessing.Process(target=client_handle_connection, args=(client, queue, results_queue, file_lock))
         child.start()
         self.active_processes[client_id] = (child, queue, results_queue) # this will allow us to communicate w process later
 
@@ -167,12 +167,15 @@ class Clients:
                 else:
                     pass
             except queue.Empty:
-                
                 pass
 
 
-def client_handle_connection(client : Client, queue: multiprocessing.Queue, results_queue: multiprocessing.Queue) -> Client:
+def client_handle_connection(
+        client : Client, 
+        queue: multiprocessing.Queue, 
+        results_queue: multiprocessing.Queue,
+        lock) -> Client:
     client.queue = queue
     client.results_queue = results_queue
-    client.receive_bets()
+    client.receive_bets(lock)
     return

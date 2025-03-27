@@ -1,3 +1,4 @@
+import multiprocessing
 import socket
 import logging
 import signal
@@ -5,6 +6,7 @@ import os
 from common.protocol import parse_message, MessageStream, send_message
 from common.utils import store_bets
 from common.client_state import Clients
+from common.thread_safe_bets import safe_store_bets
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -44,14 +46,14 @@ class Server:
         print("Shutting down...")
 
   
-    def receive_first_message(self, stream, client_sock) -> int: # TODO handle receive done message with no content
+    def receive_first_message(self, stream, client_sock, lock) -> int: # TODO handle receive done message with no content
         message = stream.get_message()
         description, content = parse_message(message)
         client_id = None
     
         bets = content[0]
         client_id = content[1]
-        store_bets(bets)
+        safe_store_bets(bets, lock)
         logging.info(f'action: apuesta_recibida | result: success | cantidad: {len(bets)}')
     
         addr = client_sock.getpeername()
@@ -66,8 +68,10 @@ class Server:
         done = False
         client_id = None
         stream = MessageStream(client_sock) # buffers messages from the client socket
-        client_id = self.receive_first_message(stream, client_sock) # use first batch to get client id
-        self.client_state.handle_connection(client_id, stream, client_sock)
+        file_lock = multiprocessing.Lock()
+        
+        client_id = self.receive_first_message(stream, client_sock, file_lock) # use first batch to get client id
+        self.client_state.handle_connection(client_id, stream, client_sock, file_lock)
 
     def __accept_new_connection(self):
         """
